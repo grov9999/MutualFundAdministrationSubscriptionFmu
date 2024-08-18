@@ -1,0 +1,63 @@
+BROKER SCHEMA pe.ibk.common
+
+
+   CREATE FUNCTION stringLenghtValidation(IN _string CHARACTER, IN _var CHARACTER, IN _length INT, OUT _message CHARACTER) RETURNS BOOLEAN
+   -- This function validates string fields. 
+   -- string : value to validate
+   -- var : var name
+   -- length : srting lenght to validate
+   -- message : error message
+   BEGIN
+      DECLARE result BOOLEAN;
+      SET result = TRUE;
+      
+      IF(_string IS NULL OR _string ='' OR _string = 'NULL') THEN
+		 SET _message = 'required field ' || _var || ',';
+		 SET result = FALSE;
+   	  ELSE
+   		 IF LENGTH( _string ) <> _length THEN
+   		 	SET _message = 'input ' || _var || ' required (' || CAST(_length AS CHARACTER) || ') characters,';
+   		 	SET result = FALSE;
+   		 END IF;	
+	  END IF;
+      
+      
+      RETURN result;
+   END;
+   
+   CREATE FUNCTION stringValidation(IN _string CHARACTER, IN _var CHARACTER, OUT _message CHARACTER) RETURNS BOOLEAN
+   -- This function validates string fields. 
+   -- string : value to validate
+   -- var : var name
+   -- message : error message
+   BEGIN
+      DECLARE result BOOLEAN;
+      SET result = TRUE;
+      
+      IF(_string IS NULL OR _string ='' OR _string = 'NULL') THEN
+		 SET _message = 'required field ' || _var || ',';
+		 SET result = FALSE;
+	  END IF;
+      
+      
+      RETURN result;
+   END;
+   
+   CREATE FUNCTION integerValidation(IN _value CHARACTER, IN _var CHARACTER, OUT _message CHARACTER) RETURNS BOOLEAN
+   -- This function validates number fields. 
+   -- value : value to validate
+   -- var : var name
+   -- length : srting lenght to validate
+   -- message : error message
+   BEGIN
+      DECLARE result BOOLEAN; 
+      SET result = TRUE;
+      
+      IF(_value IS NULL OR _value ='' OR _value = 'NULL' OR CAST(_value AS INTEGER DEFAULT -1) = -1) THEN
+		 SET _message = 'required field ' || _var || ',';
+		 SET result = FALSE;
+	  END IF;
+      
+      
+      RETURN result;
+   END;

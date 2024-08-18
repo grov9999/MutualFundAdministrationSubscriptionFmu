@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policies>
+  <policy policyType="CICSConnection" policyName="Backend_CICS_20s_Alternative" policyTemplate="CICSConnection">
+    <cicsServer>tcp://vipacics.uat.grupoib.local:3188</cicsServer>
+    <gatewayURL>local:</gatewayURL>
+    <clientApplid></clientApplid>
+    <clientQualifier></clientQualifier>
+    <connectionTimeoutSecs>20</connectionTimeoutSecs>
+    <requestTimeoutSecs>20</requestTimeoutSecs>
+    <securityIdentity></securityIdentity>
+    <egForXARecovery></egForXARecovery>
+    <sslKeystoreLocation></sslKeystoreLocation>
+    <sslKeystoreSecurityIdentity></sslKeystoreSecurityIdentity>
+  </policy>
+</policies>

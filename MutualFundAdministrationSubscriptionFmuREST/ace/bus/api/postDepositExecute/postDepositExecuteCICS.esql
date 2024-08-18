@@ -1,0 +1,113 @@
+BROKER SCHEMA ace.bus.api.postDepositExecute 
+PATH pe.ibk.common, pe.ibk.common.audit;
+
+
+CREATE COMPUTE MODULE postDepositExecuteCICS_PrepareReq
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		DECLARE refParametersIn REFERENCE TO InputLocalEnvironment.REST.Input.Parameters;
+		DECLARE refBody REFERENCE TO InputRoot.JSON.Data;
+		DECLARE refEnv REFERENCE TO Environment;
+		DECLARE refEnvAudit REFERENCE TO refEnv.Audit;
+		DECLARE refOut REFERENCE TO OutputRoot;
+		
+		/** Audit input data **/
+		CALL getInputDataAudit( refEnv, InputLocalEnvironment, InputRoot );
+		
+		CALL setPropertiesMessage(refOut,getENCODING_HOST(),getCCSID_HOST());
+		
+		/** Set Service secuence **/
+		SET refEnv.Srv.Secuence = '01';
+		
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'DFDL';
+		DECLARE refBodyOut REFERENCE TO OutputRoot.DFDL;
+		
+ 		--CALL prepareDataRequestCICS(refBodyOut,refEnv,refParametersIn,refBody);
+ 		CALL prepareDataRequestCICS(refBodyOut,refEnv,refParametersIn,refBody);
+		CALL setConfigPropertiesCICS( OutputLocalEnvironment, refEnv);	
+		
+		/** Audit request data **/
+		CALL setMonitoringRequestTime( refEnv );
+		CALL getRequestDataAudit( refEnv,  OutputRoot, OutputLocalEnvironment );
+		
+		SET Environment.ZEROXG.DataCICS = CAST( ASBITSTREAM(OutputRoot.DFDL CCSID getCCSID_HOST() ENCODING getENCODING_HOST()) AS CHARACTER CCSID getCCSID_HOST() ENCODING getENCODING_HOST());---Sirva para ver la trama , guardar en txt
+		PROPAGATE TO LABEL 'localFlow';
+						
+		RETURN FALSE;
+	END;
+END MODULE;
+
+
+CREATE COMPUTE MODULE postDepositExecuteCICS_PrepareRes
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		CALL setMonitoringResponseTime( Environment );
+		    		
+    	DECLARE chrTramaOut CHARACTER ;
+		SET chrTramaOut = CAST(InputRoot.BLOB.BLOB AS CHARACTER CCSID InputRoot.Properties.CodedCharSetId);
+		
+		SET Environment.data.chrTramaOut = chrTramaOut;
+		
+		DECLARE chrCodRes CHARACTER SUBSTRING(chrTramaOut FROM C_IND_COD_RESP FOR C_LNG_COD_RESP);
+		DECLARE chrCodMsg CHARACTER SUBSTRING(chrTramaOut FROM C_IND_MSG_RESP FOR C_LNG_MSG_RESP);
+		
+		SET chrCodRes = RIGHT('0000' || chrCodRes,4);
+		
+		CALL createResponseStatus(Environment,NULL,0,'EJECUCION CON EXITO',chrCodRes,chrCodMsg);
+		
+		CALL isSuccessCategoryCICS(Environment.StatusRes,Environment,Environment.Equivalencias);
+		DECLARE responseType INTEGER COALESCE(Environment.StatusRes.status.responseType, -1);
+		
+		--IF chrCodRes = '0000' OR responseType = 0 THEN
+			CALL createHeaderBus(OutputRoot,Environment);
+			CALL parsingTramaCICS(InputRoot,Environment,C_NS);
+			CALL prepareResponseJSON(OutputRoot,Environment);
+		--ELSE
+		--	CALL createHeaderErrorCICS(OutputRoot,Environment,OutputLocalEnvironment,chrCodRes,4,chrCodMsg);
+    	--END IF;		
+    	
+    	/* Audit response and reply data */
+		CALL setMonitoringEndTime( Environment );
+		CALL getResponseDataAudit( Environment, OutputRoot, OutputLocalEnvironment, 'S' );
+			    	
+		RETURN TRUE;
+	END;
+END MODULE;
+
+CREATE COMPUTE MODULE postDepositExecuteCICS_PrepareError
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		CALL setMonitoringResponseTime( Environment );
+		
+		IF(InputLocalEnvironment.CICS.AbendCode IS NOT NULL) THEN
+			CALL createResponseStatus(Environment,getTIP_RSPTA_3(),getCOD_ERROR_302(),getEST_MSG_503(),InputLocalEnvironment.CICS.AbendCode,InputLocalEnvironment.CICS.AbendCode);
+		ELSE
+			CALL createResponseStatus(Environment,getTIP_RSPTA_3(),0,getEST_MSG_503(),NULL,NULL);
+			CALL createStatusErrorCICS(InputExceptionList,Environment.StatusRes);
+		END IF;
+		
+		IF(Environment.Parametros.{Environment.Operation}.EQUIVRES = 'S') THEN
+			IF(FIELDNAME(Environment.StatusRes.status) IS NOT NULL) THEN
+				IF(InputLocalEnvironment.CICS.AbendCode IS NOT NULL) THEN
+					SET Environment.StatusRes.status.srvResponseCode 	= COALESCE(Environment.Equivalencias.{Environment.Operation}.{'CODEQV_'||InputLocalEnvironment.CICS.AbendCode},InputLocalEnvironment.CICS.AbendCode);
+					SET Environment.StatusRes.status.srvResponseMessage = COALESCE(Environment.Equivalencias.{Environment.Operation}.{'DESEQV_'||InputLocalEnvironment.CICS.AbendCode},InputLocalEnvironment.CICS.AbendCode);
+				END IF;
+			END IF;
+		END IF;
+		
+		SET OutputLocalEnvironment.Destination.HTTP.ReplyStatusCode = getEST_COD_503();
+		CALL createHeaderBus(OutputRoot,Environment);
+			
+		/* Store the exception in the environemnt */
+		SET Environment.DataAudit.ExceptionDetail = getFullExceptionDetail( InputExceptionList );
+				
+		/* Audit response and reply data */
+		CALL setMonitoringEndTime( Environment );
+		CALL getResponseDataAudit( Environment, OutputRoot, OutputLocalEnvironment, 'S' );
+					
+		RETURN TRUE;		
+	END;
+END MODULE;

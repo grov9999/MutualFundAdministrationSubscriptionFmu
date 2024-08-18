@@ -1,0 +1,181 @@
+BROKER SCHEMA pe.ibk.common.audit
+PATH pe.ibk.common;
+/*
+* Setea la fechaHora de inicio
+*/
+CREATE PROCEDURE setMonitoringStartTime(IN refEnv REFERENCE )
+BEGIN
+
+	SET refEnv.DataAudit.Monitoring.StartTime = initialTime();
+	SET refEnv.DataAudit.Transaction.FecHorSrv = getDateTimeAudit();
+
+END;
+
+CREATE PROCEDURE getInputDataAudit( IN refEnv REFERENCE, IN refInLocalEnv REFERENCE, IN refIn REFERENCE )
+BEGIN
+	/**** New Relic Distributed Tracing ****/
+	DECLARE refRestInput REFERENCE TO refInLocalEnv.REST.Input;
+	DECLARE refHttpInput REFERENCE TO refInLocalEnv.HTTP.Input;
+	-- Config Operation
+	DECLARE operation CHARACTER refEnv.Operation;
+	DECLARE refEnvParameters REFERENCE TO refEnv.Parametros.{operation};
+	DECLARE refEnvAudit REFERENCE TO refEnv.Audit.{operation};
+	DECLARE refEnvHeadersIn REFERENCE TO refEnv.HeadersIn;
+	-- Config Audit Transaction Trace New Relic
+	SET refEnv.DataAudit.Transaction.Id = UUIDASCHAR;
+	SET refEnv.DataAudit.Transaction.Method = refRestInput.Method;
+	SET refEnv.DataAudit.Transaction.Operation = refEnv.Operation;
+	SET refEnv.DataAudit.Transaction.AppName = ApplicationLabel;
+	SET refEnv.DataAudit.Transaction.ApiName = refHttpInput.Path.Segment[1];
+	SET refEnv.DataAudit.Transaction.Path = refRestInput.Path;
+	SET refEnv.DataAudit.Transaction.Services = getServiceNumber(refEnv);
+	SET refEnv.DataAudit.Transaction.Uri = refRestInput.URI;
+	SET refEnv.DataAudit.Transaction.ApiVersion = refHttpInput.Path.Segment[2];
+	SET refEnv.DataAudit.Transaction.OpeVersion = refEnvParameters.VERSION;
+	SET refEnv.DataAudit.Transaction.Kind = 'consumer';
+	SET refEnv.DataAudit.Transaction.Level = 'apievent';
+	SET refEnv.DataAudit.Transaction.IntegrationServer = ExecutionGroupLabel;
+	SET refEnv.DataAudit.Transaction.Namespace = COALESCE( refEnvAudit.Namespace, 'ocp');
+	SET refEnv.DataAudit.Transaction.Origen = 'IFX';
+	SET refEnv.DataAudit.Transaction.GlobalTransactionId = refRestInput.Parameters."x-global-transaction-id";
+	SET refEnv.DataAudit.Transaction.nriParentId = COALESCE( refEnvHeadersIn.Uuidorigen,refRestInput.Parameters."x-global-transaction-id");
+	
+	SET refEnv.DataAudit.Transaction.metadata = refEnvAudit.metadata;
+
+    	
+	-- Config Audit Parameters
+	SET refEnv.DataAudit.Parameters = refRestInput.Parameters;
+	-- Config Audit QueryString
+	SET refEnv.DataAudit.QueryString = refHttpInput.QueryString;
+	-- Config Audit Input
+	IF FIELDNAME(refIn.*[<]) IN ('JSON', 'DFDL', 'XMLNSC', 'SOAP') THEN
+		SET refEnv.DataAudit.Input = refIn.*[<];
+	END IF;
+
+END;
+
+
+CREATE PROCEDURE getRequestDataAudit(IN refEnv REFERENCE, IN refData REFERENCE, IN refInLocalEnv REFERENCE ) -- CBRP 13/12/2021
+BEGIN
+	/**** New Relic Distributed Tracing ****/
+	DECLARE chrSequence CHARACTER COALESCE( refEnv.Srv.Secuence,'01');
+	DECLARE refEnvDataAudit REFERENCE TO refEnv.DataAudit;
+	DECLARE operation CHARACTER refEnv.Operation;
+	DECLARE refEnvParameters REFERENCE TO refEnv.Parametros.{operation};
+	-- Config Audit Monitoring to New Relic
+	DECLARE service CHARACTER 'Service' || chrSequence;
+	SET refEnv.DataAudit.Monitoring.{service}.BackendProtocol = COALESCE(refEnvParameters.PROTOCOLO,refEnvParameters.{'SERVICIO_' || chrSequence}.PROTOCOLO); -- CBRP 13/12/2021
+	SET refEnv.DataAudit.Monitoring.{service}.ProgramName = COALESCE(refEnvParameters.NOMPROGRAM,refEnvParameters.{'SERVICIO_' || chrSequence}.NOMPROGRAM); -- CBRP 13/12/2021
+	SET refEnv.DataAudit.Monitoring.{service}.TransactionId = COALESCE(refEnvParameters.CICSTRAN,refEnvParameters.{'SERVICIO_' || chrSequence}.CICSTRAN); -- CBRP 13/12/2021
+	SET refEnv.DataAudit.Monitoring.{service}.Uri = COALESCE(refEnvParameters.URLDEST,refEnvParameters.{'SERVICIO_' || chrSequence}.URLDEST); -- CBRP 13/12/2021
+	SET refEnv.DataAudit.Monitoring.{service}.Method = COALESCE(refEnvParameters.METODO,refEnvParameters.{'SERVICIO_' || chrSequence}.METODO); -- CBRP 13/12/2021
+
+	IF FIELDNAME (refData.*[<]) IN ( 'DFDL', 'JSON', 'XMLNSC', 'SOAP') THEN
+		SET refEnv.DataAudit.{'RequestService' || chrSequence} = refData.*[<];
+	ELSE
+		DECLARE refHttpInput REFERENCE TO refInLocalEnv.Destination.HTTP;
+		-- Config Audit QueryString
+		SET refEnv.DataAudit.{'QueryString' || chrSequence} = refHttpInput.QueryString; -- CBRP 13/12/2021
+	END IF;
+
+END;
+
+CREATE PROCEDURE getResponseDataAudit( IN refEnv REFERENCE, IN refOut REFERENCE, IN refOutLocalEnv REFERENCE, IN chrReply CHARACTER )
+BEGIN
+	/**** New Relic Distributed Tracing ****/
+	DECLARE refRootService REFERENCE TO refEnv;
+	DECLARE refEnvDataAudit REFERENCE TO refEnv.DataAudit;
+	DECLARE chrSequence CHARACTER COALESCE( refEnv.Srv.Secuence,'01');
+	DECLARE rootService CHARACTER 'Service' || chrSequence; -- CBRP --13/12/2021
+	-- Config Audit Monitoring to New Relic
+	SET refEnvDataAudit.Monitoring.{rootService}.Duration = calculateRequestTime( refEnvDataAudit.Monitoring.{'Service' || chrSequence}.StartTime );
+
+	IF refEnv.Srv.Composite = TRUE THEN
+		MOVE refRootService TO refEnv.{rootService};
+	END IF;
+	-- Config Audit Response Data to New Relic
+	IF FIELDNAME ( refRootService.*[<] ) IN ('DFDL', 'JSON', 'XMLNSC', 'SOAP') THEN
+		SET refEnvDataAudit.{'ResponseService' || chrSequence} = refRootService.*[<];
+	END IF;
+
+	IF chrReply = 'S' THEN
+		CALL getReplyDataAudit( refEnv, refOut, refOutLocalEnv );
+	END IF;
+END;
+
+CREATE PROCEDURE getReplyDataAudit( IN refEnv REFERENCE, IN refData REFERENCE, IN refOutLocalEnv REFERENCE )
+		BEGIN
+		
+		/**** New Relic Distributed Tracing ****/
+		DECLARE refEnvDataAudit REFERENCE TO refEnv.DataAudit;
+		SET refEnvDataAudit.Reply.HTTPReplyHeader = refData.HTTPReplyHeader;
+		
+		IF FIELDNAME (refData.*[<]) IN ('DFDL', 'JSON', 'XMLNSC', 'SOAP') THEN
+			SET refEnvDataAudit.Reply.JSON = refData.*[<];
+		END IF;
+		
+		DECLARE duration INTEGER calculateRequestTime( refEnvDataAudit.Monitoring.StartTime );
+				
+		-- Config Audit Monitoring to New Relic
+		SET refEnvDataAudit.Monitoring.Duration	= duration;
+		
+		-- Config Audit Transaction to New Relic
+		SET refEnvDataAudit.Transaction.Duration		= duration;
+		SET refEnvDataAudit.Transaction.BackendDuration = getBackendMonitoring( refEnv);
+		SET refEnvDataAudit.Transaction.CodResBus		= refData.HTTPReplyHeader.busResponseCode;
+		SET refEnvDataAudit.Transaction.CodResSrv		= refData.HTTPReplyHeader.srvResponseCode;
+		
+		
+		DECLARE replyStatusCode INTEGER COALESCE( refOutLocalEnv.Destination.HTTP.ReplyStatusCode, 200);
+		SET refEnvDataAudit.Transaction.StatusCode 	= replyStatusCode;	
+		SET refEnvDataAudit.Transaction.Reason 		= getHTTPStatusMessage ( replyStatusCode );
+		SET refEnvDataAudit.Transaction.ErrorType 	= getFunctionalError( refData, replyStatusCode );
+		
+		DECLARE statusDescription CHARACTER getResponseDescription(refData);
+																																			   
+		IF replyStatusCode = 200 THEN
+			SET refEnvDataAudit.Transaction."Otel_StatusCode" 			= 'OK';
+			SET refEnvDataAudit.Transaction."Otel_StatusDescription" 	= COALESCE(statusDescription,'EJECUCION CON EXITO');
+		ELSEIF replyStatusCode = 209 THEN
+			SET refEnvDataAudit.Transaction."Otel_StatusCode" 			= 'OK';
+			SET refEnvDataAudit.Transaction."Otel_StatusDescription" 	= COALESCE(statusDescription,'ERROR FUNCIONAL');
+		ELSE
+			SET refEnvDataAudit.Transaction."Otel_StatusCode"			= 'ERROR';
+			SET refEnvDataAudit.Transaction."Otel_StatusDescription" 	= COALESCE(statusDescription,'ERROR');
+			SET refEnvDataAudit.Transaction."Error_Name" 				= COALESCE(refData.HTTPReplyHeader.busResponseMessage,'');
+			SET refEnvDataAudit.Transaction."Error_Message" 			= COALESCE(refData.HTTPReplyHeader.srvResponseMessage,'');
+			SET refEnvDataAudit.Transaction."Error_StatusCode" 			= COALESCE(replyStatusCode,'');
+			SET refEnvDataAudit.Transaction."Error_Reason" 				= COALESCE(statusDescription,'');
+		END IF;
+	END;
+/*
+* Setea la fechaHora de inicio
+*/
+CREATE PROCEDURE setMonitoringRequestTime(IN refEnv REFERENCE )
+BEGIN
+
+	DECLARE chrSequence CHARACTER COALESCE( refEnv.Srv.Secuence,'01');
+	DECLARE nroServicios CHARACTER FormatAlignCadena(chrSequence,2,'0','DER');
+	DECLARE service CHARACTER 'Service' || nroServicios;
+
+	SET refEnv.DataAudit.Monitoring.{service}.StartTime = initialTime();
+
+END;
+/*
+* Setea la fechaHora de inicio
+*/
+CREATE PROCEDURE setMonitoringResponseTime(IN refEnv REFERENCE )
+BEGIN
+
+	DECLARE chrSequence CHARACTER COALESCE( refEnv.Srv.Secuence,'01');
+	DECLARE nroServicios CHARACTER FormatAlignCadena(chrSequence,2,'0','DER');
+	DECLARE service CHARACTER 'Service' || nroServicios;
+
+	SET refEnv.DataAudit.Monitoring.{service}.EndTime = initialTime();
+
+END;
+
+CREATE PROCEDURE setMonitoringEndTime(IN refEnv REFERENCE )
+BEGIN
+	SET refEnv.DataAudit.Monitoring.EndTime = initialTime();
+END;

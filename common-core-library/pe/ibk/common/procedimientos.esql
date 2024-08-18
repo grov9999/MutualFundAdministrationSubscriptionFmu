@@ -1,0 +1,1652 @@
+BROKER SCHEMA pe.ibk.common
+
+/*
+* Setea el formato del mensaje
+*/
+CREATE PROCEDURE setPropertiesMessage(IN refOutputRoot REFERENCE, IN intEncoding INTEGER, IN intCCSID INTEGER )
+BEGIN
+
+	IF (intEncoding IS NOT NULL) THEN
+		SET refOutputRoot.Properties.Encoding = intEncoding;
+	END IF;
+	
+	IF (intCCSID IS NOT NULL) THEN
+		SET refOutputRoot.Properties.CodedCharSetId = intCCSID;
+	END IF;
+END;
+
+
+/*
+* Setea las propiedades del CICS
+*/
+CREATE PROCEDURE setConfigPropertiesCICS(IN refOutputLocalEnvironment REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	IF refEnv.Parametros.{refEnv.Operation}.TOTALCOMAREA IS NOT NULL THEN
+		IF refEnv.Parametros.{refEnv.Operation}.BSEOJIN = C_NO THEN
+			SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName 		= getParmSecSrv(refEnv, 'NOMPROGRAM');
+			SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen		= CAST(getParmSecSrv(refEnv, 'TOTALCOMAREA') AS INTEGER) + C_COMMAREA_400;
+		ELSE
+			SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName 		= C_BSEOJIN_PROGRAM_NAME;
+			SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen		= CAST(getParmSecSrv(refEnv, 'TOTALCOMAREA') AS INTEGER) + C_COMMAREA_400;
+		END IF;
+	ELSE
+		
+		IF refEnv.Parametros.{refEnv.Operation}.BSEOJIN = C_NO THEN
+			SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName 		= getParmSecSrv(refEnv, 'NOMPROGRAM');
+			SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen		= CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400;
+		ELSE
+			SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName 		= C_BSEOJIN_PROGRAM_NAME;
+			SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen		= CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400;
+		END IF;
+	
+	END IF;
+	
+	SET refOutputLocalEnvironment.Destination.CICS.mirrorTran				= getParmSecSrv(refEnv, 'CICSTRAN');
+	SET refOutputLocalEnvironment.Destination.CICS.requestTimeoutSecs		= CAST(getParmSecSrv(refEnv, 'TIMEOUT') AS INTEGER);
+		
+END;
+
+CREATE PROCEDURE setConfigPropertiesCICSv2(IN refOutputLocalEnvironment REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	DECLARE refConfig REFERENCE TO refEnv.Parametros.{refEnv.Operation};
+	
+	IF refConfig.BSEOJIN = C_NO THEN
+		SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName = getParmSecSrv(refEnv, 'NOMPROGRAM');
+	ELSE
+		SET refOutputLocalEnvironment.Destination.CICS.CICSProgramName = C_BSEOJIN_PROGRAM_NAME;
+	END IF;
+	
+	
+	IF (refConfig.TOTALCOMAREA IS NOT NULL) AND (refConfig.HEADERLOGGER IS NOT NULL) THEN
+		SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen = CAST(getParmSecSrv(refEnv, 'TOTALCOMAREA') AS INTEGER) + CAST(getParmSecSrv(refEnv, 'HEADERLOGGER') AS INTEGER);
+	ELSEIF (refConfig.TOTALCOMAREA IS NOT NULL) THEN
+		SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen = CAST(getParmSecSrv(refEnv, 'TOTALCOMAREA') AS INTEGER) + C_COMMAREA_400;
+	ELSEIF (refConfig.HEADERLOGGER IS NOT NULL) THEN
+		SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen = CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + CAST(getParmSecSrv(refEnv, 'HEADERLOGGER') AS INTEGER);
+	ELSE
+		SET refOutputLocalEnvironment.Destination.CICS.CICSCommareaLen = CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400;
+	END IF;
+	
+	SET refOutputLocalEnvironment.Destination.CICS.mirrorTran				= getParmSecSrv(refEnv, 'CICSTRAN');
+	SET refOutputLocalEnvironment.Destination.CICS.requestTimeoutSecs		= CAST(getParmSecSrv(refEnv, 'TIMEOUT') AS INTEGER);
+		
+END;
+
+
+CREATE PROCEDURE setConfigPropertiesREST(IN refLocalEnv REFERENCE,
+IN refEnv REFERENCE,
+IN refOut REFERENCE)
+BEGIN
+		
+	SET refLocalEnv.Destination.HTTP.RequestURL = getParmSecSrv(refEnv,'URLDEST');
+    SET refLocalEnv.Destination.HTTP.Timeout = getParmSecSrv(refEnv,'TIMEOUT');
+      
+    SET refLocalEnv.Destination.HTTP.RequestLine.Method = getParmSecSrv(refEnv,'METHOD');--POST, GET, PUT, DELETE
+      
+	SET refOut.HTTPRequestHeader."Accept" = 'application/json';
+	SET refOut.HTTPRequestHeader."Content-Type" = 'application/json';
+	SET refOut.Properties.Encoding = COALESCE(refEnv.InputProperties.Encoding, 576);
+	SET refOut.Properties.CodedCharSetId = COALESCE(refEnv.InputProperties.CodedCharSetId, 1208);
+
+END;
+
+
+
+CREATE PROCEDURE setConfigPropertiesRESTMPG(IN refLocalEnv REFERENCE,
+IN refEnv REFERENCE,
+IN refOut REFERENCE)
+BEGIN
+        
+    SET refOut.Properties.Encoding = COALESCE(refEnv.InputProperties.Encoding, 576);
+    SET refOut.Properties.CodedCharSetId = COALESCE(refEnv.InputProperties.CodedCharSetId, 1208);
+    
+    DECLARE urlMpg CHARACTER getParmSecSrv(refEnv,'URLMPG');
+    
+    IF ( urlMpg <> '' ) THEN
+	    SET refLocalEnv.Destination.HTTP.RequestURL = urlMpg;
+	    SET refOut.HTTPRequestHeader."rPath" = getParmSecSrv(refEnv,'URLDEST');
+    ELSE
+	    SET refLocalEnv.Destination.HTTP.RequestURL = getParmSecSrv(refEnv,'URLDEST');
+    END IF;
+    
+    SET refLocalEnv.Destination.HTTP.Timeout = getParmSecSrv(refEnv,'TIMEOUT');
+      
+    SET refLocalEnv.Destination.HTTP.RequestLine.Method = getParmSecSrv(refEnv,'METHOD');--POST, GET, PUT, DELETE
+      
+    SET refOut.HTTPRequestHeader."Accept" = 'application/json';
+    SET refOut.HTTPRequestHeader."Content-Type" = 'application/json';
+
+END;
+/*
+* Crea la estructura "status" de una repsuesta
+* si es un tipo 406 (error controlado de validaciones) se trata como una Exception
+*/
+CREATE PROCEDURE createResponseStatus(IN refEnv REFERENCE, IN intTipoResp INTEGER, IN intBusCodigoResp INTEGER,IN chrBusMensajeResp CHARACTER, IN chrSrvCodigoResp CHARACTER, IN chrSrvMensajeResp CHARACTER)
+BEGIN
+	CREATE FIELD refEnv.StatusRes;
+	SET refEnv.StatusRes.status.responseType = intTipoResp;
+	SET refEnv.StatusRes.status.busResponseCode = intBusCodigoResp;
+	SET refEnv.StatusRes.status.busResponseMessage = chrBusMensajeResp;
+	SET refEnv.StatusRes.status.srvResponseCode = chrSrvCodigoResp;
+	SET refEnv.StatusRes.status.srvResponseMessage = chrSrvMensajeResp;
+END;
+
+CREATE PROCEDURE createResponseStatusFull(	IN refEnv REFERENCE, 
+										IN intTipoResp INTEGER, 
+										IN intBusCodigoResp INTEGER,
+										IN chrBusMensajeResp CHARACTER, 
+										IN chrSrvCodigoResp CHARACTER, 
+										IN chrSrvMensajeResp CHARACTER, 
+										IN chrEqvCodigoResp CHARACTER, 
+										IN chrEqvMensajeResp CHARACTER)
+BEGIN
+	CREATE FIELD refEnv.StatusRes;
+	SET refEnv.StatusRes.status.responseType = intTipoResp;
+	SET refEnv.StatusRes.status.busResponseCode = intBusCodigoResp;
+	SET refEnv.StatusRes.status.busResponseMessage = chrBusMensajeResp;
+	SET refEnv.StatusRes.status.srvResponseCode = chrSrvCodigoResp;
+	SET refEnv.StatusRes.status.srvResponseMessage = chrSrvMensajeResp;
+	SET refEnv.StatusRes.status.eqvResponseCode = chrEqvCodigoResp;
+	SET refEnv.StatusRes.status.eqvResponseMessage = chrEqvMensajeResp;
+END;
+
+CREATE PROCEDURE createHeaderErrorCICS(IN refOut REFERENCE,IN refEnv REFERENCE,IN refOutLocalEnv REFERENCE,IN chrCodSrvRes CHARACTER,IN intCodLong INTEGER,IN chrMsjSrvRes CHARACTER)
+BEGIN
+	
+	IF chrCodSrvRes IS NOT NULL THEN
+	
+		DECLARE chrCodRes CHARACTER FormatAlignCadena(chrCodSrvRes,intCodLong,'0','DER');
+		CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,chrCodRes,chrMsjSrvRes);
+		
+		IF (chrMsjSrvRes = '') THEN
+			CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,chrCodSrvRes,C_MSJ_ERROR_CICS);
+		END IF;
+		
+		IF (chrCodRes = REPLICATE('0',intCodLong)) THEN
+			CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,CAST(C_COD_ERROR_CICS AS CHARACTER),C_MSJ_ERROR_CICS);
+		END IF;
+	END IF;
+	
+	CALL obtenerEquivalenciaRespuestaCICS(refEnv.StatusRes,refEnv,refEnv.Equivalencias);
+	
+	SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_209();
+ 	CALL createHeaderBus(refOut,refEnv);
+END;
+
+/*
+* Evalua si el codigo de respuesta de CICS corresponde a la categoria de exito
+*/
+CREATE PROCEDURE isSuccessCategoryCICS(IN refEnvStatus REFERENCE, IN refCacheSrv REFERENCE, IN refCacheEqv REFERENCE)
+BEGIN
+	IF (refCacheSrv.Parametros.{refCacheSrv.Operation}.EQUIVRES = C_SI) THEN
+		IF (FIELDNAME(refEnvStatus.status) IS NOT NULL) THEN
+			
+			IF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} ='00') THEN
+					SET refEnvStatus.status.responseType 			= C_TIP_RSPTA_0;
+	                SET refEnvStatus.status.busResponseCode 		= 0;
+	                SET refEnvStatus.status.busResponseMessage 		= C_MSJ_EXITO_ESB;
+	                SET refEnvStatus.status.srvResponseMessage 		= refCacheEqv.{refCacheSrv.Operation}.{'DESEQV_'||refEnvStatus.status.srvResponseCode};
+	                SET refEnvStatus.status.srvResponseCode 		= refCacheEqv.{refCacheSrv.Operation}.{'CODEQV_'||refEnvStatus.status.srvResponseCode};        	                
+			END IF;					
+		END IF;
+	END IF;
+END;
+
+/*
+* Obtiene las codigos y mensajes equivalentes para las respestas de los servicios proveedores de CICS
+*/
+CREATE PROCEDURE obtenerEquivalenciaRespuestaCICS(IN refEnvStatus REFERENCE, IN refCacheSrv REFERENCE, IN refCacheEqv REFERENCE)
+BEGIN
+	IF (refCacheSrv.Parametros.{refCacheSrv.Operation}.EQUIVRES = C_SI) THEN
+		IF (FIELDNAME(refEnvStatus.status) IS NOT NULL) THEN
+			
+			IF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} IS NOT NULL AND
+                    refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} <> '00') THEN --SI EL CODIGO DE RESPUESTA DEL PROVEEDOR ESTA MAPEAOD COMO ERROR
+                    
+                SET refEnvStatus.status.eqvResponseCode = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'CODEQV_'||refEnvStatus.status.srvResponseCode},'');
+                SET refEnvStatus.status.eqvResponseMessage = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'DESEQV_'||refEnvStatus.status.srvResponseCode},'');
+    
+	            THROW USER EXCEPTION MESSAGE getCOD_ERROR_501() VALUES(refEnvStatus.detalleError);
+			ELSEIF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} IS NULL) THEN  -- SI EL CODIGO DE RESPUESTA DEL PROVEEDOR NO ESTA MAPEADO
+              
+             	IF refEnvStatus.status.srvResponseMessage = '' THEN
+            		SET refEnvStatus.status.srvResponseMessage = getEST_MSG_209();
+            	END IF;
+            	
+            	SET refCacheSrv.detalleError 	= COALESCE(refEnvStatus.status.srvResponseMessage,'');
+            	SET refCacheSrv.codigoError 	= refEnvStatus.status.srvResponseCode;
+            	
+            	THROW USER EXCEPTION MESSAGE getCOD_ERROR_502() VALUES(refEnvStatus.detalleError);          	 	               	
+            END IF;			
+		END IF;
+	END IF;
+END;
+
+
+
+/*
+* Obtiene las codigos y mensajes equivalentes para las respestas de los servicios proveedores de HTTP
+*/
+CREATE PROCEDURE obtenerEquivalenciaRespuestaHTTP(IN refEnvStatus REFERENCE, IN refCacheSrv REFERENCE, IN refCacheEqv REFERENCE)
+BEGIN
+    IF (refCacheSrv.Parametros.{refCacheSrv.Operation}.EQUIVRES = C_SI) THEN
+        IF (FIELDNAME(refEnvStatus.status) IS NOT NULL) THEN
+         
+            IF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} IS NOT NULL AND
+                    refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} = '00') THEN  -- SI EL CODIGO DE RESPUESTA DEL PROVEEDOR ESTA MAPEADO COMO EXITO
+
+                SET refEnvStatus.status.eqvResponseCode = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'CODEQV_'||refEnvStatus.status.srvResponseCode},'');
+                IF LENGTH(refEnvStatus.status.eqvResponseCode) <= 4 THEN
+                    SET refEnvStatus.status.eqvResponseCode = RIGHT('0000' || refEnvStatus.status.eqvResponseCode, 4);
+                END IF;
+                SET refEnvStatus.status.eqvResponseMessage = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'DESEQV_'||refEnvStatus.status.srvResponseCode},'');
+
+                SET refEnvStatus.status.srvResponseCode    = refEnvStatus.status.eqvResponseCode;
+                IF COALESCE(refEnvStatus.status.srvResponseMessage, '') = '' THEN
+                    SET refEnvStatus.status.srvResponseMessage = refEnvStatus.status.eqvResponseMessage;
+                END IF;
+
+            ELSEIF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} IS NOT NULL AND
+                     refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} <> '00') THEN  -- SI EL CODIGO DE RESPUESTA DEL PROVEEDOR ESTA MAPEADO COMO ERROR
+
+                SET refEnvStatus.status.eqvResponseCode = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'CODEQV_'||refEnvStatus.status.srvResponseCode},'');
+                IF LENGTH(refEnvStatus.status.eqvResponseCode) <= 4 THEN
+	                SET refEnvStatus.status.eqvResponseCode = RIGHT('0000' || refEnvStatus.status.eqvResponseCode, 4);
+                END IF;
+                SET refEnvStatus.status.eqvResponseMessage = COALESCE(refCacheEqv.{refCacheSrv.Operation}.{'DESEQV_'||refEnvStatus.status.srvResponseCode},'');
+
+                SET refEnvStatus.status.srvResponseCode    = refEnvStatus.status.eqvResponseCode;
+                IF COALESCE(refEnvStatus.status.srvResponseMessage, '') = '' THEN
+                    SET refEnvStatus.status.srvResponseMessage = refEnvStatus.status.eqvResponseMessage;
+                END IF;
+ 
+                SET refEnvStatus.status.responseType = C_TIP_RSPTA_5;
+                SET refEnvStatus.status.busResponseCode = C_COD_ERROR_501;
+                SET refEnvStatus.status.busResponseMessage = C_MSJ_ERROR_501;
+                THROW USER EXCEPTION MESSAGE getCOD_ERROR_501() VALUES(refEnvStatus.detalleError);
+
+            ELSEIF (refCacheEqv.{refCacheSrv.Operation}.{'CATEGORIA_'||refEnvStatus.status.srvResponseCode} IS NULL) THEN  -- SI EL CODIGO DE RESPUESTA DEL PROVEEDOR NO ESTA MAPEADO
+
+                SET refEnvStatus.status.responseType = C_TIP_RSPTA_5;
+                SET refEnvStatus.status.busResponseCode = C_COD_ERROR_502;
+                SET refEnvStatus.status.busResponseMessage = C_MSJ_ERROR_502;
+                SET refEnvStatus.detalleError = refEnvStatus.status.srvResponseCode || ' - ' || refEnvStatus.status.srvResponseMessage;  -- para el detalle en el envio de correos
+                THROW USER EXCEPTION MESSAGE getCOD_ERROR_502() VALUES(refEnvStatus.detalleError);
+ 
+            END IF;
+        END IF;
+    END IF;
+END;
+
+
+/*
+ * Genera la estructura Environment.StatusRes.status
+*/ 
+CREATE PROCEDURE obtenerCodMsjError(IN refExceptionList REFERENCE, IN refEnvStatusRes REFERENCE) 
+BEGIN
+	
+	SET refEnvStatusRes.status.tmp.srvResponseCode = refEnvStatusRes.status.srvResponseCode;
+	SET refEnvStatusRes.status.tmp.srvResponseMessage = refEnvStatusRes.status.srvResponseMessage;
+   
+    IF(CARDINALITY(refExceptionList.*[])>0)THEN 
+    	CREATE FIELD refEnvStatusRes.status.srvResponseCode;
+    	CREATE FIELD refEnvStatusRes.status.srvResponseMessage;
+    	CALL obtenerDetalleError(refExceptionList,refEnvStatusRes.status.srvResponseCode,refEnvStatusRes.status.srvResponseMessage);
+    END IF;
+END;
+
+CREATE PROCEDURE getCodeMsjError(IN refExceptionList REFERENCE, IN refEnvStatusRes REFERENCE) 
+BEGIN
+   
+    IF(CARDINALITY(refExceptionList.*[])>0)THEN 
+    	CREATE FIELD refEnvStatusRes.status.srvResponseCode;
+    	CREATE FIELD refEnvStatusRes.status.srvResponseMessage;
+    	CALL getDetailError(refExceptionList,refEnvStatusRes.status.srvResponseCode,refEnvStatusRes.status.srvResponseMessage);
+    END IF;
+END;
+
+CREATE PROCEDURE getDetailError(IN InputTree REFERENCE, OUT messageNumber CHARACTER, OUT messageText CHARACTER)
+BEGIN
+	-- Crea una referencia del "first child" del "ExceptionList"
+	DECLARE ptrException REFERENCE TO InputTree.*[1];
+	DECLARE numInserts INTEGER 0;
+	DECLARE intInsert INTEGER 1;
+	DECLARE chrMessageText CHARACTER '';	    
+	-- keep looping while the moves to the child of exception list work
+	WHILE LASTMOVE(ptrException) DO
+		-- store the current values for the error number and text
+		IF (ptrException.Number IS NOT NULL) THEN
+			SET intInsert = 1;
+			SET messageNumber = ptrException.Number;
+			SET chrMessageText = chrMessageText || ' ' || COALESCE(ptrException.Text,'');
+			--SET chrMessageText = COALESCE(ptrException.Text,'');
+			SET numInserts = CARDINALITY(ptrException.Insert[]);	    		
+
+			IF (numInserts > 0) THEN	    			
+
+				SET chrMessageText = chrMessageText || '(';	    			
+
+				WHILE intInsert <= numInserts DO
+					SET chrMessageText = chrMessageText || COALESCE(ptrException.Insert[intInsert].Text,'');
+					--SET chrMessageText = COALESCE(ptrException.Insert[intInsert].Text,'');	    				
+
+					IF intInsert <> numInserts THEN
+						SET chrMessageText = chrMessageText || ', ';
+					END IF;	    				
+
+					SET intInsert = intInsert + 1;
+				END WHILE;	    			
+
+				SET chrMessageText = chrMessageText || ')';
+			END IF;
+		END IF;		
+
+		-- now move to the last child which should be the next exceptionlist
+		MOVE ptrException LASTCHILD;
+	END WHILE;
+	
+	SET messageText = chrMessageText;
+END;
+
+/*
+ * Procedimiento que obtiene la el detalle completo de un exceptionList
+*/
+CREATE PROCEDURE obtenerDetalleError(IN InputTree REFERENCE, OUT messageNumber CHARACTER, OUT messageText CHARACTER)
+BEGIN
+	-- Crea una referencia del "first child" del "ExceptionList"
+	DECLARE ptrException REFERENCE TO InputTree.*[1];
+	DECLARE numInserts INTEGER 0;
+	DECLARE intInsert INTEGER 1;
+	DECLARE chrMessageText CHARACTER '';	    
+	-- keep looping while the moves to the child of exception list work
+	WHILE LASTMOVE(ptrException) DO
+		-- store the current values for the error number and text
+		IF (ptrException.Number IS NOT NULL) THEN
+			SET intInsert = 1;
+			SET messageNumber = ptrException.Number;
+			--SET chrMessageText = chrMessageText || ' ' || COALESCE(ptrException.Text,'');
+			SET chrMessageText = COALESCE(ptrException.Text,'');
+			SET numInserts = CARDINALITY(ptrException.Insert[]);	    		
+
+			IF (numInserts > 0) THEN	    			
+
+				--SET chrMessageText = chrMessageText || '(';	    			
+
+				WHILE intInsert <= numInserts DO
+					--SET chrMessageText = chrMessageText || COALESCE(ptrException.Insert[intInsert].Text,'');
+					SET chrMessageText = COALESCE(ptrException.Insert[intInsert].Text,'');	    				
+
+					/*IF intInsert <> numInserts THEN
+						SET chrMessageText = chrMessageText || ', ';
+					END IF;**/	    				
+
+					SET intInsert = intInsert + 1;
+				END WHILE;	    			
+
+				--SET chrMessageText = chrMessageText || ')';
+			END IF;
+		END IF;		
+
+		-- now move to the last child which should be the next exceptionlist
+		MOVE ptrException LASTCHILD;
+	END WHILE;
+	
+	SET messageText = chrMessageText;
+END;
+
+/*
+ * Divide una cadena en arreglos refEnv.Split.Array[N], de acuerdo al delimitador ingresado
+*/
+CREATE PROCEDURE split (IN S CHARACTER, IN refEnv REFERENCE, IN Delim CHARACTER) 
+BEGIN 
+   DECLARE intP INTEGER; 
+   DECLARE intI INTEGER 1; 
+
+   SET refEnv.Split = NULL; 
+    
+   REPEAT 
+      SET intP = POSITION(Delim IN S); 
+      IF intP = 0 THEN 
+         SET refEnv.Split.Array[intI] = S; 
+      ELSE
+        SET refEnv.Split.Array[intI] = LEFT(S, intP - 1); 
+     	SET S = SUBSTRING(S FROM intP + LENGTH(Delim));
+      	SET intI = intI + 1;
+      END IF; 
+   UNTIL intP = 0 
+       
+   END REPEAT;     
+END; 
+
+/*
+ * Procedimiento que obtiene el codigo de errore de un exceptionList y valida si este es controlado
+*/
+CREATE PROCEDURE validarCodigoErrorControlado(IN InputexceptionList REFERENCE,OUT finFlujo BOOLEAN)
+BEGIN
+	DECLARE codError CHARACTER '';
+	DECLARE textError CHARACTER '';
+	DECLARE mensaje BOOLEAN;
+	CALL obtenerDetalleError(InputexceptionList,codError,textError);
+		
+	IF codError = '3743' THEN -- Mensaje Caducado
+		set mensaje = TRUE;
+	ELSE
+		set mensaje = FALSE;
+	END IF;
+	
+	SET finFlujo = mensaje;
+END;
+
+CREATE PROCEDURE createHeaderBusError(IN refIn REFERENCE,IN refOut REFERENCE,IN refEnv REFERENCE,IN refInLocalEnv REFERENCE,IN refOutLocalEnv REFERENCE)
+BEGIN
+	
+	DECLARE intCodError INTEGER CAST(refEnv.StatusRes.status.srvResponseCode AS INTEGER DEFAULT -1);
+ 	
+ 	IF (FIELDTYPE(refInLocalEnv.HTTP.Input.Timeout.OriginalClientWaitTime) IS NOT NULL) THEN
+				
+		SET refEnv.StatusRes.status.responseType 					= getTIP_RSPTA_4(); 
+		SET refEnv.StatusRes.status.busResponseCode 				= getCOD_ERROR_402(); 
+		SET refEnv.StatusRes.status.busResponseMessage 				= getMSJ_ERROR(getCOD_ERROR_402());
+		SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_504();
+		
+	ELSEIF (obtenerTipoError(intCodError) = getTIP_ERROR_0()) THEN
+					
+		SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_209();	
+		IF (intCodError = getCOD_ERROR_501() OR intCodError = getCOD_ERROR_502()) THEN
+			IF (intCodError = getCOD_ERROR_501()) THEN
+				SET refEnv.StatusRes.status.srvResponseCode  		= NULLIF(refEnv.StatusRes.status.eqvResponseCode,'');
+				SET refEnv.StatusRes.status.srvResponseMessage 		= NULLIF(refEnv.StatusRes.status.eqvResponseMessage,'');
+				IF getParmSecSrv(refEnv, 'EQUIVADDHEADERS') = C_SI THEN
+					SET refEnv.StatusRes.status.srvResponseCode  		= NULLIF(refEnv.StatusRes.status.tmp.srvResponseCode,'');
+					SET refEnv.StatusRes.status.srvResponseMessage 		= NULLIF(refEnv.StatusRes.status.tmp.srvResponseMessage,'');
+					SET refEnv.StatusRes.status.eqvResponseCode  		= NULLIF(refEnv.StatusRes.status.eqvResponseCode,'');
+					SET refEnv.StatusRes.status.eqvResponseMessage 		= NULLIF(refEnv.StatusRes.status.eqvResponseMessage,'');
+				ELSE
+					DELETE FIELD refEnv.StatusRes.status.eqvResponseCode;
+					DELETE FIELD refEnv.StatusRes.status.eqvResponseMessage;
+				END IF;
+			ELSE
+				SET refEnv.StatusRes.status.srvResponseCode  		= NULLIF(refEnv.codigoError,'');
+				SET refEnv.StatusRes.status.srvResponseMessage 		= NULLIF(refEnv.detalleError,'');
+			END IF;
+			SET refEnv.StatusRes.status.busResponseCode = C_COD_EXITO_ESB;
+            SET refEnv.StatusRes.status.busResponseMessage = C_MSJ_EXITO_ESB;
+		ELSEIF (intCodError = getCOD_ERROR_401()) THEN
+			SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_500();
+			SET refEnv.StatusRes.status.responseType 					= LEFT(CAST(refEnv.StatusRes.status.busResponseCode AS CHARACTER),1);
+			SET refEnv.StatusRes.status.busResponseCode 				= refEnv.StatusRes.status.srvResponseCode;
+			SET refEnv.StatusRes.status.srvResponseCode 				= NULL; 
+			SET refEnv.StatusRes.status.srvResponseMessage				= NULL;
+			SET refEnv.StatusRes.status.busResponseMessage				= getMSJ_ERROR(getCOD_ERROR_401());	
+		ELSE
+			IF refEnv.Exception=FALSE THEN
+				SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_209();
+				SET refEnv.StatusRes.status.responseType 					= LEFT(CAST(refEnv.StatusRes.status.busResponseCode AS CHARACTER),1);
+				SET refEnv.StatusRes.status.busResponseCode 				= C_COD_EXITO_ESB;
+				SET refEnv.StatusRes.status.busResponseMessage				= C_MSJ_EXITO_ESB;
+			ELSE
+				SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_500();
+				SET refEnv.StatusRes.status.responseType 					= LEFT(CAST(refEnv.StatusRes.status.busResponseCode AS CHARACTER),1);
+				SET refEnv.StatusRes.status.busResponseCode 				= refEnv.StatusRes.status.srvResponseCode;
+				SET refEnv.StatusRes.status.srvResponseCode 				= NULL; 
+				SET refEnv.StatusRes.status.srvResponseMessage				= NULL;
+				SET refEnv.StatusRes.status.busResponseMessage				= getEST_MSG_500();		
+			END IF;	
+		
+		END IF;
+		
+	ELSE	  		
+		SET refEnv.StatusRes.status.responseType 					= getTIP_RSPTA_4(); 
+		SET refEnv.StatusRes.status.busResponseCode 				= getCOD_ERROR_407(); 
+		SET refEnv.StatusRes.status.busResponseMessage				= getMSJ_ERROR(getCOD_ERROR_407());
+		SET refEnv.StatusRes.status.srvResponseCode 				= NULL; 
+		SET refEnv.StatusRes.status.srvResponseMessage				= NULL;
+		SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode 		= getEST_COD_500();
+ 	END IF; 
+ 
+ 	CALL createHeaderBus(refOut,refEnv);
+END;
+
+CREATE PROCEDURE createHeaderBus(IN refOut REFERENCE,IN refEnv REFERENCE)
+BEGIN
+
+	CREATE FIELD refOut.HTTPReplyHeader;
+ 	DECLARE refOutHeader REFERENCE TO refOut.HTTPReplyHeader;
+ 	
+ 	SET refOutHeader.timestamp 					= getCurrentTimeStamp();
+ 	SET refOutHeader.busResponseCode 			= refEnv.StatusRes.status.busResponseCode;
+ 	SET refOutHeader.busResponseMessage 		= refEnv.StatusRes.status.busResponseMessage;
+ 	SET refOutHeader.srvResponseCode 			= refEnv.StatusRes.status.srvResponseCode;
+ 	SET refOutHeader.srvResponseMessage 		= refEnv.StatusRes.status.srvResponseMessage;
+ 	SET refOutHeader.eqvResponseCode 			= refEnv.StatusRes.status.eqvResponseCode;
+ 	SET refOutHeader.eqvResponseMessage 		= refEnv.StatusRes.status.eqvResponseMessage;
+	SET refOutHeader."X-Global-Transaction-ID" 	= refEnv.HeadersIn."X-Global-Transaction-Id";
+	SET refOutHeader.messageId					= refEnv.HeadersIn.Messageid;
+		
+END;
+
+
+CREATE PROCEDURE prepareHeaderBSEOJINT(IN refOut REFERENCE, IN refEnv REFERENCE, IN charNs CHARACTER,IN refParameters REFERENCE, IN chrPosCodResp CHARACTER, IN chrLongCodResp CHARACTER )
+BEGIN
+	
+	CREATE LASTCHILD OF refOut NAMESPACE charNs NAME 'MESSAGEHOST';
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER;
+	DECLARE refDynamicBseojin REFERENCE TO refEnv.ParamsBSEOJIN;
+	
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_TRACEID 			= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_PARENTID 			= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_CANALID 			= COALESCE(refParameters."netId",'') || ' ';
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_OFIPROC 			= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO	= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_DEVICEID 			= COALESCE(refParameters."deviceId",COALESCE(refParameters."netId",''));
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_CODUNICO 			= COALESCE(refDynamicBseojin.customerId,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_TIPDOC 			= RIGHT(COALESCE(refDynamicBseojin.documentTypeId,''),1);
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_NUMDOC 			= COALESCE(refDynamicBseojin.documentNumber,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_PROTOCOL 			= C_PROTOCOLO_IPIC;
+	
+	
+	IF refParameters."userType" = 'F' OR refParameters."userType" = 'D' THEN
+		SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = COALESCE(refParameters."userType",'');
+		SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+	ELSE
+		-- Operaciones Fase 1
+		IF refDynamicBseojin.isACF OR refDynamicBseojin.isTOLD THEN
+			
+			DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+	
+			IF existItem THEN
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = 'F';
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+			ELSE
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = 'D';
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+			END IF;
+	            
+		ELSE
+			SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA 		= ' ';
+		END IF;
+		
+	END IF;
+	
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_PROGRAMA 		= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_POS_COD_RESP 	= chrPosCodResp;
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_LON_COD_RESP 	= chrLongCodResp;
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_LON_COM_PROG 	= getParmSecSrv(refEnv, 'COMAREALEN');
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_TIPO_PROGRAMA 	= ' '; -- se envia vacio cuando es consulta
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_FILLER2 			= '';
+	
+	IF refDynamicBseojin.isACF THEN		
+		SET refHeaderOut.BSEC0199_MONITOR_ACF.BSEC0199_FLAG_ACF_POST = 'S';
+		SET refHeaderOut.BSEC0199_MONITOR_ACF.BSEC0199_FLAG_EXTORNO = 'N';
+	END IF;
+			
+END;
+/*cambio de valor netId por serviceId segun necesidad del servicio*/
+CREATE PROCEDURE prepareHeaderBSEOJINTV2(IN refOut REFERENCE, IN refEnv REFERENCE, IN charNs CHARACTER,IN refParameters REFERENCE, IN chrPosCodResp CHARACTER, IN chrLongCodResp CHARACTER )
+BEGIN
+	
+	CREATE LASTCHILD OF refOut NAMESPACE charNs NAME 'MESSAGEHOST';
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER;
+	DECLARE refDynamicBseojin REFERENCE TO refEnv.ParamsBSEOJIN;
+	
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_TRACEID 			= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_PARENTID 			= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_CANALID 			= COALESCE(refParameters."serviceId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_OFIPROC 			= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO	= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_DEVICEID 			= COALESCE(refParameters."deviceId",COALESCE(refParameters."netId",''));
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_CODUNICO 			= COALESCE(refDynamicBseojin.customerId,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_TIPDOC 			= RIGHT(COALESCE(refDynamicBseojin.documentTypeId,''),1);
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_NUMDOC 			= COALESCE(refDynamicBseojin.documentNumber,'');
+	SET refHeaderOut.BSEC0199_HEADER.BSEC0199_PROTOCOL 			= C_PROTOCOLO_IPIC;
+	
+	
+	IF refParameters."userType" = 'F' OR refParameters."userType" = 'D' THEN
+		SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = COALESCE(refParameters."userType",'');
+		SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+	ELSE
+		-- Operaciones Fase 1
+		IF refDynamicBseojin.isACF OR refDynamicBseojin.isTOLD THEN
+			
+			DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+	
+			IF existItem THEN
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = 'F';
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+			ELSE
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA = 'D';
+			      SET refHeaderOut.BSEC0199_HEADER.BSEC0199_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+			END IF;
+	            
+		ELSE
+			SET refHeaderOut.BSEC0199_HEADER.BSEC0199_FLAG_AUDITA 		= ' ';
+		END IF;
+		
+	END IF;
+	
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_PROGRAMA 		= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_POS_COD_RESP 	= chrPosCodResp;
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_LON_COD_RESP 	= chrLongCodResp;
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_LON_COM_PROG 	= getParmSecSrv(refEnv, 'COMAREALEN');
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_TIPO_PROGRAMA 	= ' '; -- se envia vacio cuando es consulta
+	SET refHeaderOut.BSEC0199_DE_PROG.BSEC0199_FILLER2 			= '';
+	
+	IF refDynamicBseojin.isACF THEN		
+		SET refHeaderOut.BSEC0199_MONITOR_ACF.BSEC0199_FLAG_ACF_POST = 'S';
+		SET refHeaderOut.BSEC0199_MONITOR_ACF.BSEC0199_FLAG_EXTORNO = 'N';
+	END IF;
+			
+END;
+-- Deprecado - Usado en Fase01 no tiene campos dinamicos
+CREATE PROCEDURE prepareHeaderBSECCOMD(IN refOut REFERENCE, IN charNs CHARACTER)
+BEGIN
+	
+	CREATE LASTCHILD OF refOut NAMESPACE charNs NAME 'MESSAGEHOST';
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_BSECCOMD;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_BSECCOMD;
+	
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_RED 			= 'TR';
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_SRV 			= 'BSE';
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_EXEC_AREA_IN.BSECCOMD_EXEC_AREA_IN_ENT[1].BSECCOMD_LN_SUB_TRAMA_IN 		= '4301';		
+END;
+
+-- Prepara Estructura BSECCOMD
+CREATE PROCEDURE prepareHeaderBSECCOMDv2(IN refOut REFERENCE, IN charNs CHARACTER, IN refEnv REFERENCE, IN refParameters REFERENCE)
+BEGIN
+	
+	CREATE LASTCHILD OF refOut NAMESPACE charNs NAME 'MESSAGEHOST';
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_BSECCOMD;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_BSECCOMD;
+		
+	DECLARE longSubTotal INTEGER 0;
+	
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_TRAMA	=	refEnv.ParamsHOST.tramaCode	; 
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_TI_OPER	=	refEnv.ParamsHOST.operationType	;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_IL_EXTO	=	refEnv.ParamsHOST.isExt	;
+		
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_RED				= 	refParameters.netId;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_SRV				=	refParameters.serviceId;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_TIENDA			=	refParameters.branchId;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_USUARIO_IN		= 	refParameters.userId;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_USUARIO_AUT		= 	refParameters.supervisorId;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_DE_ESTACION		=	refParameters.deviceId	;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_FE_ORIGEN			=	CAST(CURRENT_DATE AS CHARACTER FORMAT 'yyyyMMdd');
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_HO_ORIGEN			=	CAST(CURRENT_TIME AS CHARACTER FORMAT 'HHmmss')	;
+	
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_NU_OPERAC_IN	=	refEnv.ParamsHOST.operationNumber;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_NU_AUTORIZ_IN	=	refEnv.ParamsHOST.authNumber ;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_NU_EXTORNO		=	refEnv.ParamsHOST.extNumber;
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_LN_SUB_TRAMA	=	longSubTotal;
+	
+	CREATE FIELD refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_EXEC_AREA_IN;
+	DECLARE refArea REFERENCE TO refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_EXEC_AREA_IN;
+	DECLARE refSubHst REFERENCE TO refEnv;
+	
+	IF FIELDTYPE(refEnv.Parametros.{refEnv.Operation}.SUBTRAMA) IS NOT NULL  THEN
+	
+		-- Recorre por cada subtrama recibida
+		FOR refSub AS refEnv.Parametros.{refEnv.Operation}.SUBTRAMA.[] DO
+			
+			CREATE LASTCHILD  OF refArea AS refSubHst NAME 'BSECCOMD_EXEC_AREA_IN_ENT';
+			
+			SET refSubHst.BSECCOMD_CO_SUB_TRAMA_IN = refSub.NOMPROGRAM;
+			SET refSubHst.BSECCOMD_LN_SUB_TRAMA_IN = refSub.COMAREALEN;
+			SET longSubTotal = longSubTotal + refSub.COMAREALEN;
+			
+		END FOR;
+		
+	ELSE
+		
+		SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_EXEC_AREA_IN.BSECCOMD_EXEC_AREA_IN_ENT.BSECCOMD_CO_SUB_TRAMA_IN = refEnv.Parametros.{refEnv.Operation}.NOMPROGRAM;
+		SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_EXEC_AREA_IN.BSECCOMD_EXEC_AREA_IN_ENT.BSECCOMD_LN_SUB_TRAMA_IN = refEnv.Parametros.{refEnv.Operation}.COMAREALEN;
+		SET longSubTotal = longSubTotal + refEnv.Parametros.{refEnv.Operation}.COMAREALEN;
+		
+	END IF;
+	
+	-- Setea el valor calculado
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_LN_SUB_TRAMA		= longSubTotal; 
+
+	SET refHeaderOut.BSECCOMD_HEADER_IN.BSECCOMD_CO_LOG				= CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyy-MM-dd HH:mm:ss.S');
+	
+	SET refHeaderOut.BSECCOMD_HEADER_OUT.BSECCOMD_CO_USUARIO_OUT	= refParameters.userId;
+			
+END;
+
+CREATE PROCEDURE prepareHeaderBSE(IN refOut REFERENCE, IN refParameters REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.MESSAGEHOSTLITE.HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.MESSAGEHOSTLITE.HEADER;
+	
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_TRACEID 			= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_PARENTID 			= COALESCE(refParameters."parentId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_CANALID 			= COALESCE(refParameters."consumerId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_OFIPROC 			= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_USUARIO_INTERNO	= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_DEVICEID 			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_CODUNICO 			= padding(refParameters.customerId, 14, '0', 'LEFT');
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_TIPDOC 			= '';
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_NUMDOC 			= '';
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_PROTOCOL 			= C_PROTOCOLO_IPIC;
+	SET refHeaderOut.BSEC0198_HEADER.BSEC0198_FLAG_AUDITA 		= ' '; -- nuevos	
+END;
+
+/*
+* Cabecera para servicios que no usan BSEOJIM
+*/
+CREATE PROCEDURE prepareHeaderTLDCPAGO(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refBodyIn REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_TLDCPAGO.TLDCPAGO_DATOS_INPUT;
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_TLDCPAGO.TLDCPAGO_COMMAREA_MPIS;
+	DECLARE refInPayTLD REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_TLDCPAGO.TLDCPAGO_DATOS_INPUT;
+	DECLARE refMpTLD REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_TLDCPAGO.TLDCPAGO_COMMAREA_MPIS;
+	DECLARE refIn REFERENCE TO refBodyIn;
+	
+	SET refInPayTLD.TLDCPAGO_CODOCIDE    = FormatAlignCadena(CAST(COALESCE(refIn.documentTypeId,'')AS CHARACTER),2,'0',ALIGN_FIELD_RIGHT);
+	SET refInPayTLD.TLDCPAGO_NUDOCIDE    = FormatAlignCadena(COALESCE(refIn.documentNumber,''),11,' ',ALIGN_FIELD_LEFT);
+	SET refInPayTLD.TLDCPAGO_COMON       = FormatAlignCadena(COALESCE(refIn.transaction.currencyCode,''),3,'0',ALIGN_FIELD_RIGHT);
+	SET refInPayTLD.TLDCPAGO_IMTXN       = getDecimalVal(refIn.transaction.amount ,2);
+	SET refInPayTLD.TLDCPAGO_TCAM_COMPRA = getDecimalVal(refIn.transaction.exchangeRate.purchase,6);
+	SET refInPayTLD.TLDCPAGO_TCAM_VENTA  = getDecimalVal(refIn.transaction.exchangeRate.sale ,6);
+	
+	SET refInPayTLD.TLDCPAGO_IND_VALLIM  	= COALESCE (refIn.transaction.validateLimits, '');
+	SET refInPayTLD.TLDCPAGO_IND_ACTLIM   	= COALESCE (refIn.transaction.updateLimits, '');
+	SET refInPayTLD.TLDCPAGO_IND_VALTRJ   	= COALESCE (refIn.transaction.validateCards, '' );
+	SET refInPayTLD.TLDCPAGO_IND_TRXCTBLE 	= COALESCE (refIn.transaction.transferAccounting, '');
+	SET refInPayTLD.TLDCPAGO_IND_NROMEDIOS	= COALESCE (refIn.transaction.paymentMethodsQuantity, 0);
+	SET refInPayTLD.TLDCPAGO_COD_TRXTOLD  	= COALESCE (refIn.transaction.code, ''); 
+	SET refInPayTLD.TLDCPAGO_TIP_TRXTOLD  	= COALESCE (refIn.transaction.type, '');
+	SET refInPayTLD.TLDCPAGO_USER_TOLD    	= COALESCE (refIn.transaction.userId, '');
+	
+	SET refInPayTLD.TLDCPAGO_IL_KEY4      = COALESCE (refIn.accountingKeys.fourthKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY4      = COALESCE (refIn.accountingKeys.fourthKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY5      = COALESCE (refIn.accountingKeys.fifthKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY5      = COALESCE (refIn.accountingKeys.fifthKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY6      = COALESCE (refIn.accountingKeys.sixthKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY6      = COALESCE (refIn.accountingKeys.sixthKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY7      = COALESCE (refIn.accountingKeys.seventhKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY7      = COALESCE (refIn.accountingKeys.seventhKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY8      = COALESCE (refIn.accountingKeys.eighthKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY8      = COALESCE (refIn.accountingKeys.eighthKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY9      = COALESCE (refIn.accountingKeys.ninethKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY9      = COALESCE (refIn.accountingKeys.ninethKey.code, '');
+	SET refInPayTLD.TLDCPAGO_IL_KEY10     = COALESCE (refIn.accountingKeys.tenthKey.flag, 'N');
+	SET refInPayTLD.TLDCPAGO_CO_KEY10     = COALESCE (refIn.accountingKeys.tenthKey.code, '');
+	
+	DECLARE idxPay INTEGER 0;	
+	DECLARE mpItem REFERENCE TO refMpTLD;
+
+	FOR sourceItem AS refIn.paymentMethod.Item[] DO
+			
+		IF (idxPay<2) THEN
+			
+			CREATE LASTCHILD OF refMpTLD AS mpItem NAME 'TLDCPAGO_MEDIOS';
+			
+			SET mpItem.TLDCPAGO_MEDIO_PAGO       = FormatAlignCadena(COALESCE(sourceItem.code, ''), 2, '0', ALIGN_FIELD_RIGHT);
+			SET mpItem.TLDCPAGO_TIPO_OPERACION   = FormatAlignCadena(COALESCE(sourceItem.operationType, ''), 1, ' ', ALIGN_FIELD_LEFT);
+			SET mpItem.TLDCPAGO_MONEDA_PAGO      = FormatAlignCadena(COALESCE(sourceItem.currencyCode, ''), 3, '0', ALIGN_FIELD_RIGHT);
+			SET mpItem.TLDCPAGO_IMPORTE_PAGO     = getDecimalVal(sourceItem.amount,2);
+			SET mpItem.TLDCPAGO_MON_EQUIVALENTE  = FormatAlignCadena(COALESCE(sourceItem.equivalentCurrencyCode, ''), 3, '0', ALIGN_FIELD_RIGHT);
+			SET mpItem.TLDCPAGO_CAMBIO_ARBITRAJE = getDecimalVal(sourceItem.arbitrationChange,6);
+			SET mpItem.TLDCPAGO_FLAG_TASA_NEG    = FormatAlignCadena(COALESCE(sourceItem.tradingRateFlag, ''), 1, ' ', ALIGN_FIELD_LEFT) ;
+			SET mpItem.TLDCPAGO_IND_ITF          = FormatAlignCadena(COALESCE(sourceItem.taxFlag, ''), 1, ' ', 'IZQ');
+			SET mpItem.TLDCPAGO_COD_UNICO        = FormatAlignCadena(COALESCE(sourceItem.customerId, ''), 10, '0', ALIGN_FIELD_RIGHT);
+			
+				
+			--MEDIO DE PAGO - 04 - CUENTA CLIENTE
+			IF sourceItem.code = '04' THEN
+				
+					SET mpItem.TYPE04.TLDCPAGO_CODIG_CTLES.TLDCPAGO_CO_CUENTA_CTL1 		= FormatAlignCadena(COALESCE(sourceItem.customerAcount.controlAccountCode.organisationCode, ''), 2, ' ', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE04.TLDCPAGO_CODIG_CTLES.TLDCPAGO_CO_CUENTA_CTL2 		= FormatAlignCadena(COALESCE(sourceItem.customerAcount.controlAccountCode.currencyCode, ''), 3, '0', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE04.TLDCPAGO_CODIG_CTLES.TLDCPAGO_CO_CUENTA_CTL4 		= FormatAlignCadena(COALESCE(sourceItem.customerAcount.controlAccountCode.productCode, ''), 3, ' ', ALIGN_FIELD_RIGHT);
+					
+					SET mpItem.TYPE04.TLDCPAGO_NUMERO_CTA_CLTE.TLDCPAGO_CO_CUENTA_CTL3  = FormatAlignCadena(COALESCE(sourceItem.customerAcount.controlAccountNumber.accountBranchId, ''), 3, '0', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE04.TLDCPAGO_NUMERO_CTA_CLTE.TLDCPAGO_NRO_CUENTA      = FormatAlignCadena(COALESCE(sourceItem.customerAcount.controlAccountNumber.accountNumber, ''), 10, ' ', ALIGN_FIELD_LEFT);
+					
+					SET mpItem.TYPE04.TLDCPAGO_NUMERO_ELECTRON 							= FormatAlignCadena(COALESCE(sourceItem.customerAcount.electronNumber, ''), 16, ' ', ALIGN_FIELD_LEFT);
+					SET mpItem.TYPE04.TLDCPAGO_TIPO_RETENCION 							= FormatAlignCadena(COALESCE(sourceItem.customerAcount.retentionType, ''), 2, '0', 'IZQ');
+					SET mpItem.TYPE04.TLDCPAGO_GLOSA_DINAMICA							= FormatAlignCadena(COALESCE(sourceItem.customerAcount.dynamicGloss, ''), 12, ' ', 'IZQ');
+								
+			--MEDIO DE PAGO - 05 - CUENTA CONTABLE
+			ELSEIF sourceItem.code = '05' THEN 
+					
+					SET mpItem.TYPE05.TLDCPAGO_OFI_EMISORA 			=FormatAlignCadena(COALESCE(sourceItem.accountingAccount.branchSenderCode, ''), 3, '0', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE05.TLDCPAGO_OFI_RECEPT 			=FormatAlignCadena(COALESCE(sourceItem.accountingAccount.branchReceiverCode, ''), 3, '0', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE05.TLDCPAGO_CTA_CTBLE 			=FormatAlignCadena(COALESCE(sourceItem.accountingAccount.accountingAccountNumber, ''), 14, '0', ALIGN_FIELD_RIGHT);
+					SET mpItem.TYPE05.TLDCPAGO_NRO_NOTA 			=FormatAlignCadena(COALESCE(sourceItem.accountingAccount.noteNumber, ''), 8, '0', ALIGN_FIELD_RIGHT) ;
+					SET mpItem.TYPE05.TLDCPAGO_IND_NOAFECTO_CTBLE 	=FormatAlignCadena(COALESCE(sourceItem.accountingAccount.taxFlag, ''), 1, ' ', ALIGN_FIELD_LEFT);
+											
+			/*MEDIO DE PAGO
+				06 - TARJETA DE CREDITO               
+				61 - COMPRA TARJETA DE CREDITO        
+				62 - DISPOSICION DE EFECTIVO          
+				63 - PAGO DE TARJETA*/                
+			ELSEIF (sourceItem.code = '06' OR sourceItem.code= '61' OR 
+					sourceItem.code = '62' OR sourceItem.code = '63') THEN
+					
+					SET mpItem.TYPE06_61_62_63.TLDCPAGO_TARJETA_CREDITO  	= COALESCE(sourceItem.chargeCard.cardId, '');
+					SET mpItem.TYPE06_61_62_63.TLDCPAGO_MISMO_CLIENTE_TC  	= COALESCE(sourceItem.chargeCard.cardHolderFlag, '');
+					SET mpItem.TYPE06_61_62_63.TLDCPAGO_GLOSA_DINAMICA_TC 	= COALESCE(sourceItem.chargeCard.dynamicComment, '');
+			
+			END IF;	
+		END IF;
+		SET idxPay = idxPay + 1;	
+	END FOR;--END WHILE;
+		
+END;
+
+CREATE PROCEDURE prepareHeaderBSEC0198(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.BSEC0198COMMAREA.BSEC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.BSEC0198COMMAREA.BSEC0198_HEADER;
+	
+	SET refHeaderOut.BSEC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0198_PARENTID				= COALESCE(refParameters."parentId",'');
+	SET refHeaderOut.BSEC0198_CANALID 				= COALESCE(refParameters."consumerId",'');
+	SET refHeaderOut.BSEC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.BSEC0198_CODUNICO  			= padding(refParameters.customerId, 14, '0', 'LEFT');
+	SET refHeaderOut.BSEC0198_TIPDOC  				= '';
+	SET refHeaderOut.BSEC0198_NUMDOC  				= '';
+	SET refHeaderOut.BSEC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+	SET refHeaderOut.BSEC0198_FLAG_AUDITA 			= ' ';
+	
+		
+END;
+
+CREATE PROCEDURE prepareHeaderBSEC0198v2(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.BSEC0198COMMAREA.BSEC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.BSEC0198COMMAREA.BSEC0198_HEADER;
+	DECLARE refDynamicHost REFERENCE TO refEnv.ParamsHOST;
+	
+	SET refHeaderOut.BSEC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0198_PARENTID				= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.BSEC0198_CANALID 				= COALESCE(refParameters."consumerId",'');
+	SET refHeaderOut.BSEC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.BSEC0198_CODUNICO  			= COALESCE(refDynamicHost.customerId,'');
+	SET refHeaderOut.BSEC0198_TIPDOC  				= RIGHT(COALESCE(refDynamicHost.documentTypeId,''),1);
+	SET refHeaderOut.BSEC0198_NUMDOC  				= COALESCE(refDynamicHost.documentNumber,'');
+	SET refHeaderOut.BSEC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+	SET refHeaderOut.BSEC0198_FLAG_AUDITA 			= ' ';
+	
+		
+END;
+
+CREATE PROCEDURE prepareHeaderBSECI198(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_HEADER;
+	DECLARE refDynamicHost REFERENCE TO refEnv.ParamsHOST;
+	
+	SET refHeaderOut.BSEC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0198_PARENTID				= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.BSEC0198_CANALID 				= COALESCE(refParameters."netId",'') || ' ';
+	SET refHeaderOut.BSEC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.BSEC0198_CODUNICO  			= COALESCE(refDynamicHost.customerId,'');
+	SET refHeaderOut.BSEC0198_TIPDOC				= RIGHT(COALESCE(refDynamicHost.documentTypeId,''),1);
+	SET refHeaderOut.BSEC0198_NUMDOC  				= COALESCE(refDynamicHost.documentNumber,'');
+	SET refHeaderOut.BSEC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+	
+	IF refDynamicHost.isACF OR refDynamicHost.isTOLD THEN
+		
+		DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+
+		IF existItem THEN
+		      SET refHeaderOut.BSEC0198_FLAG_AUDITA  = 'F';
+		      SET refHeaderOut.BSEC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+		ELSE
+		      SET refHeaderOut.BSEC0198_FLAG_AUDITA  = 'D';
+		      SET refHeaderOut.BSEC0198_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+		END IF;
+            
+	ELSE
+		SET refHeaderOut.BSEC0198_FLAG_AUDITA 			= ' ';
+	END IF;
+	
+	SET refHeaderOut.BSEC0198_FLAG_GRABAR_LOG		= '';
+	SET refHeaderOut.BSEC0198_FLAG_EXTORNO 			= 'N';
+	SET refHeaderOut.BSEC0198_NRO_EXTORNO 			= '';
+	SET refHeaderOut.BSEC0198_NRO_OPECANAL 			= '';
+	SET refHeaderOut.BSEC0198_SUB_TRAMA 			= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	
+	IF refDynamicHost.isACF THEN
+		SET refHeaderOut.BSEC0198_IL_MONITOR 			= 'S';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= '';
+		END IF;
+	ELSE
+		SET refHeaderOut.BSEC0198_IL_MONITOR 			= '';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= '';
+		END IF;
+	END IF;
+	
+	SET refHeaderOut.BSEC0198_NU_TARJETA 			= '';
+	
+	SET refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_FILLER		= padding('', 61, ' ', 'LEFT');
+	
+		
+END;
+--add v2 
+CREATE PROCEDURE prepareHeaderBSECI198v2(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_HEADER;
+	DECLARE refDynamicHost REFERENCE TO refEnv.ParamsHOST;
+	
+	SET refHeaderOut.BSEC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.BSEC0198_PARENTID				= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.BSEC0198_CANALID 				= COALESCE(refParameters."netId",'') || ' ';
+	SET refHeaderOut.BSEC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.BSEC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.BSEC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.BSEC0198_CODUNICO  			= COALESCE(refDynamicHost.customerId,'');
+	SET refHeaderOut.BSEC0198_TIPDOC				= RIGHT(COALESCE(refDynamicHost.documentTypeId,''),1);
+	SET refHeaderOut.BSEC0198_NUMDOC  				= COALESCE(refDynamicHost.documentNumber,'');
+	SET refHeaderOut.BSEC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+	
+	IF refEnv.HeadersIn."Usertype" = 'F' OR refEnv.HeadersIn."Usertype" = 'D' THEN
+		SET refHeaderOut.BSEC0198_FLAG_AUDITA = COALESCE(refEnv.HeadersIn."Usertype",'');
+		SET refHeaderOut.BSEC0198_USUARIO_INTERNO = COALESCE(refEnv.HeadersIn."Userid",'');
+		
+	ELSEIF refDynamicHost.isACF OR refDynamicHost.isTOLD THEN
+		
+		DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+
+		IF existItem THEN
+		      SET refHeaderOut.BSEC0198_FLAG_AUDITA  = 'F';
+		      SET refHeaderOut.BSEC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+		ELSE
+		      SET refHeaderOut.BSEC0198_FLAG_AUDITA  = 'D';
+		      SET refHeaderOut.BSEC0198_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+		END IF;
+            
+	ELSE
+		SET refHeaderOut.BSEC0198_FLAG_AUDITA 			= ' ';
+	END IF;
+	
+	SET refHeaderOut.BSEC0198_FLAG_GRABAR_LOG		= '';
+	SET refHeaderOut.BSEC0198_FLAG_EXTORNO 			= 'N';
+	SET refHeaderOut.BSEC0198_NRO_EXTORNO 			= '';
+	SET refHeaderOut.BSEC0198_NRO_OPECANAL 			= '';
+	SET refHeaderOut.BSEC0198_SUB_TRAMA 			= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	
+	IF refDynamicHost.isACF THEN
+		SET refHeaderOut.BSEC0198_IL_MONITOR 			= 'S';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= '';
+		END IF;
+	ELSE
+		SET refHeaderOut.BSEC0198_IL_MONITOR 			= '';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.BSEC0198_IL_MONITOR_RT	= '';
+		END IF;
+	END IF;
+	
+	SET refHeaderOut.BSEC0198_NU_TARJETA 			= '';
+	
+	SET refOut.{charNs}:MESSAGEHOST.HEADER_BSECI198.BSEC0198_FILLER		= padding('', 61, ' ', 'LEFT');
+	
+		
+END;
+/*
+* Version 2 - Control de errores al superar limite de valores para campo "documentNumber"
+*/
+CREATE PROCEDURE prepareHeaderTLDC0198v2(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_HEADER;
+	DECLARE refDynamicHost REFERENCE TO refEnv.ParamsHOST;
+	
+	SET refHeaderOut.TLDC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.TLDC0198_PARENTID				= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.TLDC0198_CANALID 				= COALESCE(refParameters."netId",'') || ' ';
+	SET refHeaderOut.TLDC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.TLDC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.TLDC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.TLDC0198_CODUNICO  			= FormatAlignCadena(COALESCE(refDynamicHost.customerId,''),14,'0','DER');
+	SET refHeaderOut.TLDC0198_TIPDOC				= FormatAlignCadena(COALESCE(RIGHT(COALESCE(refDynamicHost.documentTypeId,''),1)),2,'0','DER');--FormatAlignCadena(COALESCE(refIn.disbursement.operationType,''),1,'0','IZQ')
+	SET refHeaderOut.TLDC0198_NUMDOC  				= FormatAlignCadena(COALESCE(refDynamicHost.documentNumber,''),11,'','IZQ');
+	-- SET refHeaderOut.TLDC0198_NUMDOC = FormatAlignCadena(SUBSTRING(TRIM(LEADING '0' FROM COALESCE(refDynamicHost.documentNumber,'')) FROM 1 FOR 11),11,'0','DER'); // Envia vacio igual opera
+	SET refHeaderOut.TLDC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+		
+	IF refParameters."userType" = 'F' OR refParameters."userType" = 'D' THEN
+		SET refHeaderOut.TLDC0198_FLAG_AUDITA = COALESCE(refParameters."userType",'');
+		SET refHeaderOut.TLDC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+	ELSE
+		
+		IF refDynamicHost.isACF OR refDynamicHost.isTOLD THEN
+			
+			DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+	
+			IF existItem THEN
+			      SET refHeaderOut.TLDC0198_FLAG_AUDITA  = 'F';
+			      SET refHeaderOut.TLDC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+			ELSE
+			      SET refHeaderOut.TLDC0198_FLAG_AUDITA  = 'D';
+			      SET refHeaderOut.TLDC0198_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+			END IF;
+	            
+		ELSE
+			SET refHeaderOut.TLDC0198_FLAG_AUDITA 			= ' ';
+		END IF;
+		
+	END IF;
+	
+	SET refHeaderOut.TLDC0198_FLAG_GRABAR_LOG		= '';
+	SET refHeaderOut.TLDC0198_FLAG_EXTORNO 			= 'N';
+	IF refDynamicHost.chargeBackNumber IS NOT NULL THEN
+		SET refHeaderOut.TLDC0198_FLAG_EXTORNO 		= 'E';
+	END IF;
+	SET refHeaderOut.TLDC0198_NRO_EXTORNO 			= FormatAlignCadena(COALESCE(refDynamicHost.chargeBackNumber,''),8,'0','DER');
+	SET refHeaderOut.TLDC0198_NRO_OPECANAL 			= FormatAlignCadena(COALESCE(refDynamicHost.operationNumber,''),8,'0','DER');
+	SET refHeaderOut.TLDC0198_SUB_TRAMA 			= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	
+	IF refDynamicHost.isACF THEN
+		SET refHeaderOut.TLDC0198_IL_MONITOR 			= 'S';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= '';
+		END IF;
+	ELSE
+		SET refHeaderOut.TLDC0198_IL_MONITOR 			= '';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= '';
+		END IF;
+	END IF;
+	
+	SET refHeaderOut.TLDC0198_NU_TARJETA 			= FormatAlignCadena(COALESCE(refDynamicHost.cardId,''),16,' ','IZQ');
+	
+	SET refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_FILLER		= padding('', 60, ' ', 'LEFT');
+	
+		
+END;
+
+
+/*
+* Prepara el localenvironment para la invocacion de un servicio proveedor REST del BUS
+*/
+CREATE PROCEDURE prepareHeaderTLDC0198(IN refOut REFERENCE, IN charNs CHARACTER, IN refParameters REFERENCE, IN refEnv REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_HEADER;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_HEADER;
+	DECLARE refDynamicHost REFERENCE TO refEnv.ParamsHOST;
+	
+	SET refHeaderOut.TLDC0198_TRACEID 				= COALESCE(refParameters."traceId",'');
+	SET refHeaderOut.TLDC0198_PARENTID				= COALESCE(refEnv.DataAudit.Transaction.Id,'');
+	SET refHeaderOut.TLDC0198_CANALID 				= COALESCE(refParameters."netId",'') || ' ';
+	SET refHeaderOut.TLDC0198_OFIPROC 				= COALESCE(refParameters."branchId",'');
+	SET refHeaderOut.TLDC0198_USUARIO_INTERNO 		= COALESCE(refParameters."userId",'');
+	SET refHeaderOut.TLDC0198_DEVICEID  			= COALESCE(refParameters."deviceId",'');
+	SET refHeaderOut.TLDC0198_CODUNICO  			= FormatAlignCadena(COALESCE(refDynamicHost.customerId,''),14,'0','DER');
+	SET refHeaderOut.TLDC0198_TIPDOC				= FormatAlignCadena(COALESCE(RIGHT(COALESCE(refDynamicHost.documentTypeId,''),1)),2,'0','DER');--FormatAlignCadena(COALESCE(refIn.disbursement.operationType,''),1,'0','IZQ')
+	SET refHeaderOut.TLDC0198_NUMDOC  				= COALESCE(refDynamicHost.documentNumber,'');
+	SET refHeaderOut.TLDC0198_PROTOCOL				= C_PROTOCOLO_IPIC;
+		
+	IF refParameters."userType" = 'F' OR refParameters."userType" = 'D' THEN
+		SET refHeaderOut.TLDC0198_FLAG_AUDITA = COALESCE(refParameters."userType",'');
+		SET refHeaderOut.TLDC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+	ELSE
+		
+		IF refDynamicHost.isACF OR refDynamicHost.isTOLD THEN
+			
+			DECLARE existItem BOOLEAN EXISTS(SELECT r FROM refEnv.ParamsMonitorACF.Item[] AS r WHERE  r.netId = refParameters."netId" AND r.serviceId = refParameters."serviceId") ;
+	
+			IF existItem THEN
+			      SET refHeaderOut.TLDC0198_FLAG_AUDITA  = 'F';
+			      SET refHeaderOut.TLDC0198_USUARIO_INTERNO = COALESCE(refParameters."userId",'');
+			ELSE
+			      SET refHeaderOut.TLDC0198_FLAG_AUDITA  = 'D';
+			      SET refHeaderOut.TLDC0198_USUARIO_INTERNO = LEFT(refParameters."serviceId",3) || '00000';
+			END IF;
+	            
+		ELSE
+			SET refHeaderOut.TLDC0198_FLAG_AUDITA 			= ' ';
+		END IF;
+		
+	END IF;
+	
+	SET refHeaderOut.TLDC0198_FLAG_GRABAR_LOG		= '';
+	SET refHeaderOut.TLDC0198_FLAG_EXTORNO 			= 'N';
+	IF refDynamicHost.chargeBackNumber IS NOT NULL THEN
+		SET refHeaderOut.TLDC0198_FLAG_EXTORNO 		= 'E';
+	END IF;
+	SET refHeaderOut.TLDC0198_NRO_EXTORNO 			= FormatAlignCadena(COALESCE(refDynamicHost.chargeBackNumber,''),8,'0','DER');
+	SET refHeaderOut.TLDC0198_NRO_OPECANAL 			= FormatAlignCadena(COALESCE(refDynamicHost.operationNumber,''),8,'0','DER');
+	SET refHeaderOut.TLDC0198_SUB_TRAMA 			= getParmSecSrv(refEnv, 'NOMPROGRAM');
+	
+	IF refDynamicHost.isACF THEN
+		SET refHeaderOut.TLDC0198_IL_MONITOR 			= 'S';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= '';
+		END IF;
+	ELSE
+		SET refHeaderOut.TLDC0198_IL_MONITOR 			= '';
+		IF refDynamicHost.isRT THEN
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= 'S';
+		ELSE
+			SET refHeaderOut.TLDC0198_IL_MONITOR_RT	= '';
+		END IF;
+	END IF;
+	
+	SET refHeaderOut.TLDC0198_NU_TARJETA 			= FormatAlignCadena(COALESCE(refDynamicHost.cardId,''),16,' ','IZQ');
+	
+	SET refOut.{charNs}:MESSAGEHOST.HEADER_TLDC0198.TLDC0198_FILLER		= padding('', 60, ' ', 'LEFT');
+	
+		
+END;
+
+
+/*
+* Prepara el localenvironment para la invocacion de un servicio proveedor REST del BUS
+*/
+CREATE PROCEDURE prepararEntornoInvocacionREST(IN refLocalEnv REFERENCE,
+IN refEnv REFERENCE,
+IN refOut REFERENCE)
+BEGIN
+		
+	SET refLocalEnv.Destination.HTTP.RequestURL = getParmSecSrv(refEnv,'URLDEST');
+    SET refLocalEnv.Destination.HTTP.Timeout = getParmSecSrv(refEnv,'TIMEOUT');
+      
+    SET refLocalEnv.Destination.HTTP.RequestLine.Method = getParmSecSrv(refEnv,'METHOD');--POST, GET, PUT, DELETE
+      
+	SET refOut.HTTPRequestHeader."Accept" = 'application/json';
+	SET refOut.HTTPRequestHeader."Content-Type" = 'application/json';
+	SET refOut.Properties.Encoding = COALESCE(refEnv.InputProperties.Encoding, 576);
+	SET refOut.Properties.CodedCharSetId = COALESCE(refEnv.InputProperties.CodedCharSetId, 1208);
+
+END;
+
+
+CREATE PROCEDURE prepareHeaderSrvCanonico(IN refOutput REFERENCE, IN refEnv REFERENCE)
+BEGIN
+		
+	SET refOutput.Properties = refEnv.InputProperties; 
+	SET refOutput.Properties.CreationTime = CURRENT_GMTTIMESTAMP;
+ 
+	SET refOutput.HTTPInputHeader 		= refEnv.HeadersIn;
+	
+	SET refOutput.HTTPInputHeader.Msgid 		= getMsgId();
+	SET refOutput.HTTPInputHeader.Apiname 		= getParmSecSrv(refEnv,'BACKENDNAME');
+	SET refOutput.HTTPInputHeader.Operation 	= getParmSecSrv(refEnv,'BACKENDOPERATION');
+	SET refOutput.HTTPInputHeader.Origen 		= refEnv.Parametros.{refEnv.Operation}.NOMBRE;
+	SET refOutput.HTTPInputHeader.Msgidorigen  	= refEnv.HeadersIn.Messageid;
+	SET refOutput.HTTPInputHeader.Uuidorigen  	= refEnv.DataAudit.Transaction.Id; -- CBRP 31/12/2021 AUDITORIA NEW RELIC
+	SET refOutput.HTTPInputHeader.Protocolo 	= getID_PROTOCOLO_ENTRADA_BUS();
+	SET refOutput.HTTPInputHeader.Fields 		= getParmSecSrv(refEnv,'FIELDS');
+	
+	DECLARE refParam REFERENCE TO refEnv.Parametros.{refEnv.Operation}.{'SERVICIO_' || refEnv.Srv.Secuence}.*[1];
+	
+	WHILE LASTMOVE(refParam) AND STARTSWITH(FIELDNAME(refParam), 'RW') DO 
+		SET refOutput.HTTPInputHeader.{'Rewrite_' || SUBSTRING(FIELDNAME(refParam) AFTER 'RW')} = FIELDVALUE(refParam); 		  			    
+	  	MOVE refParam NEXTSIBLING REPEAT TYPE; 
+	END WHILE;	
+END;
+
+CREATE PROCEDURE prepareHeaderApi(IN refOutput REFERENCE, IN refEnv REFERENCE)
+BEGIN
+		
+	SET refOutput.Properties = refEnv.InputProperties; 
+	SET refOutput.Properties.CreationTime = CURRENT_GMTTIMESTAMP;
+ 
+	SET refOutput.HTTPInputHeader 		= refEnv.HeadersIn;
+	
+	SET refOutput.HTTPInputHeader.Msgid 		= getMsgId();
+	SET refOutput.HTTPInputHeader.Apiname 		= getParmSecSrv(refEnv,'BACKENDNAME');
+	SET refOutput.HTTPInputHeader.Operation 	= getParmSecSrv(refEnv,'BACKENDOPERATION');
+	SET refOutput.HTTPInputHeader.Origen 		= refEnv.Parametros.{refEnv.Operation}.NOMBRE;
+	SET refOutput.HTTPInputHeader.Msgidorigen  	= refEnv.HeadersIn.Messageid;
+	SET refOutput.HTTPInputHeader.Uuidorigen  	= refEnv.DataAudit.Transaction.Id; -- CBRP 31/12/2021 AUDITORIA NEW RELIC
+	SET refOutput.HTTPInputHeader.Protocolo 	= getID_PROTOCOLO_ENTRADA_BUS();
+	SET refOutput.HTTPInputHeader.Fields 		= getParmSecSrv(refEnv,'FIELDS');
+	
+	SET refOutput.HTTPInputHeader."Ocp-Apim-Subscription-Key" 		= refEnv.Subscription.{refEnv.Operation}.key;
+	SET refOutput.HTTPInputHeader."Ocp-Apim-Subscription-Secret"	= refEnv.Subscription.{refEnv.Operation}.secret;
+	
+	DECLARE refParam REFERENCE TO refEnv.Parametros.{refEnv.Operation}.{'SERVICIO_' || refEnv.Srv.Secuence}.*[1];
+	
+	WHILE LASTMOVE(refParam) AND STARTSWITH(FIELDNAME(refParam), 'RW') DO 
+		SET refOutput.HTTPInputHeader.{'Rewrite_' || SUBSTRING(FIELDNAME(refParam) AFTER 'RW')} = FIELDVALUE(refParam); 		  			    
+	  	MOVE refParam NEXTSIBLING REPEAT TYPE; 
+	END WHILE;	
+END;
+	
+CREATE PROCEDURE parsingTramaCICS(IN refIn REFERENCE, IN refEnv REFERENCE, IN chrNS CHARACTER)
+BEGIN
+	
+	DECLARE options INTEGER BITOR(FolderBitStream,ValidateNone);
+	CREATE LASTCHILD OF refEnv DOMAIN('DFDL') 
+			PARSE(refIn.BLOB.BLOB,getENCODING_HOST(),getCCSID_HOST(),'','{' || chrNS || '}:MESSAGEHOST','',options);
+END;		
+
+/*
+* IFX Prepara cabecera CDICCOMD (Deprecado - Solo usado en Fase01)
+*/
+CREATE PROCEDURE prepareHeaderCDICCOMD(IN refOut REFERENCE, IN charNs CHARACTER, IN userId CHARACTER, IN terminalId CHARACTER)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_CDICCOMD;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_CDICCOMD;
+	
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_USUARIO_IN		= terminalId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_USUARIO_AUT		= userId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_TI_USER			= '1';
+	
+	SET refHeaderOut.CDICCOMD_HEADER_OUT.CDICCOMD_CO_USUARIO_OUT			= terminalId;
+END;
+
+
+/*
+* IFX Prepara cabecera CDICCOMD
+*/
+CREATE PROCEDURE prepareHeaderCDICCOMDv2(IN refOut REFERENCE, IN charNs CHARACTER, IN refEnv REFERENCE, IN refParameters REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.{charNs}:MESSAGEHOST.HEADER_CDICCOMD;
+	DECLARE refHeaderOut REFERENCE TO refOut.{charNs}:MESSAGEHOST.HEADER_CDICCOMD;
+	
+	DECLARE longSubTotal INTEGER 0;
+	
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_TRAMA	=	refEnv.ParamsHOST.tramaCode	; 
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_TI_OPER	=	refEnv.ParamsHOST.operationType	;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_IL_EXTO	=	refEnv.ParamsHOST.isExt	;
+		
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_RED				= 	refParameters.netId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_SRV				=	refParameters.serviceId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_TIENDA			=	refParameters.branchId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_USUARIO_IN		= 	refParameters.userId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_USUARIO_AUT		= 	refParameters.supervisorId;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_DE_ESTACION		=	refParameters.deviceId	;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_FE_ORIGEN			=	CAST(CURRENT_DATE AS CHARACTER FORMAT 'yyyyMMdd');
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_HO_ORIGEN			=	CAST(CURRENT_TIME AS CHARACTER FORMAT 'HHmmss')	;
+	
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_NU_OPERAC_IN	=	refEnv.ParamsHOST.operationNumber;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_NU_AUTORIZ_IN	=	refEnv.ParamsHOST.authNumber ;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_NU_EXTORNO		=	refEnv.ParamsHOST.extNumber;
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_LN_SUB_TRAMA	=	longSubTotal;
+	
+	CREATE FIELD refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_EXEC_AREA_IN;
+	DECLARE refArea REFERENCE TO refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_EXEC_AREA_IN;
+	DECLARE refSubHst REFERENCE TO refEnv;
+	
+	IF FIELDTYPE(refEnv.Parametros.{refEnv.Operation}.SUBTRAMA) IS NOT NULL  THEN
+		
+		-- Recorre por cada subtrama recibida
+		FOR refSub AS refEnv.Parametros.{refEnv.Operation}.SUBTRAMA.[] DO
+			
+			CREATE LASTCHILD  OF refArea AS refSubHst NAME 'CDICCOMD_EXEC_AREA_IN_ENT';
+			
+			SET refSubHst.CDICCOMD_CO_SUB_TRAMA_IN = refSub.NOMPROGRAM;
+			SET refSubHst.CDICCOMD_LN_SUB_TRAMA_IN = refSub.COMAREALEN;
+			SET longSubTotal = longSubTotal + refSub.COMAREALEN;
+			
+		END FOR;
+	ELSE
+		
+		SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_EXEC_AREA_IN.CDICCOMD_EXEC_AREA_IN_ENT.CDICCOMD_CO_SUB_TRAMA_IN = refEnv.Parametros.{refEnv.Operation}.NOMPROGRAM;
+		SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_EXEC_AREA_IN.CDICCOMD_EXEC_AREA_IN_ENT.CDICCOMD_LN_SUB_TRAMA_IN = refEnv.Parametros.{refEnv.Operation}.COMAREALEN;
+		SET longSubTotal = longSubTotal + refEnv.Parametros.{refEnv.Operation}.COMAREALEN;
+		
+	END IF;
+	
+	-- Setea el valor calculado
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_LN_SUB_TRAMA		= longSubTotal; 
+
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_CO_LOG				= CAST(CURRENT_TIMESTAMP AS CHARACTER FORMAT 'yyyy-MM-dd HH:mm:ss.S');
+	SET refHeaderOut.CDICCOMD_HEADER_IN.CDICCOMD_TI_USER			= refParameters.userType;
+	
+	SET refHeaderOut.CDICCOMD_HEADER_OUT.CDICCOMD_CO_USUARIO_OUT	= refParameters.userId;
+END;
+
+CREATE PROCEDURE loadDynamicHeaderBSEOJIN(IN refEnv REFERENCE, IN customerId CHARACTER, IN documentTypeId CHARACTER, IN documentNumber CHARACTER)
+BEGIN
+	
+	SET refEnv.ParamsBSEOJIN.customerId = customerId;
+	SET refEnv.ParamsBSEOJIN.documentTypeId = documentTypeId;
+	SET refEnv.ParamsBSEOJIN.documentNumber = documentNumber;
+	
+	IF getParmSecSrv(refEnv, 'MONITORACF') = 'S' THEN
+		SET refEnv.ParamsBSEOJIN.isACF = TRUE;
+	ELSE
+		SET refEnv.ParamsBSEOJIN.isACF = FALSE;
+	END IF;
+	
+	IF getParmSecSrv(refEnv, 'MONITORRT') = 'S' THEN
+		SET refEnv.ParamsBSEOJIN.isRT = TRUE;
+	ELSE
+		SET refEnv.ParamsBSEOJIN.isRT = FALSE;
+	END IF;
+	
+	IF getParmSecSrv(refEnv, 'TOLD') = 'S' THEN
+		SET refEnv.ParamsBSEOJIN.isTOLD = TRUE;
+	ELSE
+		SET refEnv.ParamsBSEOJIN.isTOLD = FALSE;
+	END IF;
+	
+END;
+
+CREATE PROCEDURE loadDynamicHeaderHOST(IN refEnv REFERENCE, IN customerId CHARACTER, IN documentTypeId CHARACTER, IN documentNumber CHARACTER)
+BEGIN
+	
+	SET refEnv.ParamsHOST.customerId = customerId;
+	SET refEnv.ParamsHOST.documentTypeId = documentTypeId;
+	SET refEnv.ParamsHOST.documentNumber = documentNumber;
+	
+	IF getParmSecSrv(refEnv, 'MONITORACF') = 'S' THEN
+		SET refEnv.ParamsHOST.isACF = TRUE;
+	ELSE
+		SET refEnv.ParamsHOST.isACF = FALSE;
+	END IF;
+	
+	IF getParmSecSrv(refEnv, 'MONITORRT') = 'S' THEN
+		SET refEnv.ParamsHOST.isRT = TRUE;
+	ELSE
+		SET refEnv.ParamsHOST.isRT = FALSE;
+	END IF;
+	
+	IF getParmSecSrv(refEnv, 'TOLD') = 'S' THEN
+		SET refEnv.ParamsHOST.isTOLD = TRUE;
+	ELSE
+		SET refEnv.ParamsHOST.isTOLD = FALSE;
+	END IF;
+	
+END;
+
+CREATE PROCEDURE loadDynamicHeadersTrxFinaciera(IN refEnv REFERENCE,
+										IN customerId CHARACTER, 
+										IN documentTypeId CHARACTER, 
+										IN documentNumber CHARACTER,
+										IN cardId CHARACTER,
+										IN chargeBackNumber CHARACTER,
+										IN operationNumber CHARACTER,
+										IN headerACF CHARACTER,
+										in headerDigitalBanking CHARACTER)
+BEGIN
+	
+	SET refEnv.ParamsHOST.cardId 			= cardId;
+	SET refEnv.ParamsHOST.chargeBackNumber 	= chargeBackNumber;
+	SET refEnv.ParamsHOST.operationNumber 	= operationNumber;
+	
+	DECLARE operation CHARACTER refEnv.Operation;
+	DECLARE refOperation REFERENCE TO refEnv.Parametros.{operation};
+	
+	IF CONTAINS(UPPER(headerACF),'PM') THEN
+		
+		SET refEnv.ParamsHOST.isACF = TRUE;
+		SET refOperation.MONITORACF = 'S';
+		
+	ELSEIF CONTAINS(UPPER(headerACF),'RT') THEN
+		
+		SET refEnv.ParamsHOST.isACF = TRUE;
+		SET refOperation.MONITORRT = 'S';
+		
+	ELSEIF CONTAINS(UPPER(headerACF),'RP') THEN
+		
+		SET refEnv.ParamsHOST.isACF = TRUE;
+		SET refOperation.MONITORACF = 'S';
+		SET refOperation.MONITORRT = 'S';
+		
+	END IF;
+	
+	CALL loadDynamicHeaderHOST(refEnv, customerId, documentTypeId, documentNumber);
+	
+END;
+
+CREATE PROCEDURE prepareApiHeadersFromComposite(IN refOutput REFERENCE, IN refEnv REFERENCE)
+BEGIN
+		
+	SET refOutput.Properties = refEnv.InputProperties; 
+	SET refOutput.Properties.CreationTime = CURRENT_GMTTIMESTAMP;
+	
+	SET refOutput.HTTPRequestHeader.traceId  			= refEnv.HeadersIn.Traceid;
+	SET refOutput.HTTPRequestHeader.parentId   			= refEnv.DataAudit.Transaction.Id;
+	SET refOutput.HTTPRequestHeader.consumerId   		= refEnv.HeadersIn.Consumerid;
+	SET refOutput.HTTPRequestHeader.funcionalidadId   	= refEnv.HeadersIn.Funcionalidadid;
+	
+	SET refOutput.HTTPRequestHeader.serviceId   	= refEnv.HeadersIn.Serviceid;
+	SET refOutput.HTTPRequestHeader.netId   		= refEnv.HeadersIn.Netid;
+	SET refOutput.HTTPRequestHeader.userId   		= refEnv.HeadersIn.Userid;
+	SET refOutput.HTTPRequestHeader.supervisorId   	= refEnv.HeadersIn.Supervisorid;
+	SET refOutput.HTTPRequestHeader.deviceId   		= refEnv.HeadersIn.Deviceid;
+	SET refOutput.HTTPRequestHeader.channelId   	= refEnv.HeadersIn.Channelid;
+	SET refOutput.HTTPRequestHeader.serverId   		= refEnv.HeadersIn.Serverid;
+	SET refOutput.HTTPRequestHeader.channelId   	= refEnv.HeadersIn.Channelid;
+	SET refOutput.HTTPRequestHeader.moduloId   		= refEnv.HeadersIn.Moduloid;
+	SET refOutput.HTTPRequestHeader.messageId   	= refEnv.HeadersIn.Messageid;
+	SET refOutput.HTTPRequestHeader.timeStamp   	= refEnv.HeadersIn.Timestamp;
+	SET refOutput.HTTPRequestHeader.countryCode   	= refEnv.HeadersIn.Countrycode;
+	SET refOutput.HTTPRequestHeader.groupMember   	= refEnv.HeadersIn.Groupmember;
+	SET refOutput.HTTPRequestHeader.referenceNumber   	= refEnv.HeadersIn.Referencenumber;
+	SET refOutput.HTTPRequestHeader.branchId   	= refEnv.HeadersIn.Branchid; 
+	SET refOutput.HTTPRequestHeader.ipOrigen   	= refEnv.HeadersIn.Iporigen;
+	
+	SET refOutput.HTTPRequestHeader.Msgid 		= getMsgId();
+	SET refOutput.HTTPRequestHeader.Apiname 		= getParmSecSrv(refEnv,'BACKENDNAME');
+	SET refOutput.HTTPRequestHeader.Operation 	= getParmSecSrv(refEnv,'BACKENDOPERATION');
+	SET refOutput.HTTPRequestHeader.Origen 		= refEnv.Parametros.{refEnv.Operation}.NOMBRE;
+	SET refOutput.HTTPRequestHeader.Msgidorigen  	= refEnv.HeadersIn.Messageid;
+	SET refOutput.HTTPRequestHeader.Uuidorigen  	= refEnv.DataAudit.Transaction.Id; -- CBRP 31/12/2021 AUDITORIA NEW RELIC
+	SET refOutput.HTTPRequestHeader.Protocolo 	= getID_PROTOCOLO_ENTRADA_BUS();
+	SET refOutput.HTTPRequestHeader.Fields 		= getParmSecSrv(refEnv,'FIELDS');
+	
+	SET refOutput.HTTPRequestHeader."Ocp-Apim-Subscription-Key" 		= refEnv.Subscription.{refEnv.Operation}.key;
+	SET refOutput.HTTPRequestHeader."Ocp-Apim-Subscription-Secret"	= refEnv.Subscription.{refEnv.Operation}.secret;
+	
+	DECLARE refParam REFERENCE TO refEnv.Parametros.{refEnv.Operation}.{'SERVICIO_' || refEnv.Srv.Secuence}.*[1];
+	
+	WHILE LASTMOVE(refParam) AND STARTSWITH(FIELDNAME(refParam), 'RW') DO 
+		SET refOutput.HTTPRequestHeader.{'Rewrite_' || SUBSTRING(FIELDNAME(refParam) AFTER 'RW')} = FIELDVALUE(refParam); 		  			    
+	  	MOVE refParam NEXTSIBLING REPEAT TYPE; 
+	END WHILE;	
+END;
+
+/*
+* Recorta el BLOB host si en IFX se usa un COMAREA de relleno, para casos no BSEOJIN
+*/
+CREATE PROCEDURE prepareApiHeadersREST(IN refOutput REFERENCE, IN refEnv REFERENCE)
+BEGIN
+        
+    SET refOutput.Properties = refEnv.InputProperties; 
+    SET refOutput.Properties.CreationTime = CURRENT_GMTTIMESTAMP;
+    
+    CREATE FIELD refOutput.HTTPRequestHeader;
+END;
+
+/*
+* Recorta el BLOB host si en IFX se usa un COMAREA de relleno, para casos no BSEOJIN
+*/
+CREATE PROCEDURE validateAndApplySubtr(IN refInput REFERENCE, IN refEnv REFERENCE, INOUT refBlob REFERENCE)
+BEGIN
+	
+	IF refEnv.Parametros.{refEnv.Operation}.TOTALCOMAREA IS NOT NULL THEN
+		SET refEnv.BLOBHOST.BLOB.BLOB = SUBSTRING(refInput.BLOB.BLOB FROM 1 FOR CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400);
+		IF refEnv.Parametros.{refEnv.Operation}.BSECCOMD = TRUE THEN
+			SET refEnv.BLOBHOST.BLOB.BLOB = SUBSTRING(refInput.BLOB.BLOB FROM 1 FOR CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400 + C_COMMAREA_BSECCOMD);
+		ELSEIF refEnv.Parametros.{refEnv.Operation}.CDICCOMD = TRUE THEN
+			SET refEnv.BLOBHOST.BLOB.BLOB = SUBSTRING(refInput.BLOB.BLOB FROM 1 FOR CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400 + C_COMMAREA_CDICCOMD);
+		ELSEIF refEnv.Parametros.{refEnv.Operation}.TLDCPAGO = TRUE THEN
+			SET refEnv.BLOBHOST.BLOB.BLOB = SUBSTRING(refInput.BLOB.BLOB FROM 1 FOR CAST(getParmSecSrv(refEnv, 'COMAREALEN') AS INTEGER) + C_COMMAREA_400 + C_COMMAREA_TLDCPAGO);
+		END IF;
+		MOVE refBlob TO refEnv.BLOBHOST;
+	END IF;
+		
+END;
+
+/*
+* Almacena los codigos de error SQL
+*/
+CREATE PROCEDURE guardarErrorSQL(IN refEnv REFERENCE, IN intSQLCODE INTEGER, IN chrSQLERRORTEXT CHARACTER, IN intSQLNATIVEERROR INTEGER, IN chrSQLSTATE CHARACTER)
+BEGIN
+	SET refEnv.SQL.SQLCODE 			= intSQLCODE;
+	SET refEnv.SQL.SQLERRORTEXT 	= chrSQLERRORTEXT;
+	SET refEnv.SQL.SQLNATIVEERROR 	= intSQLNATIVEERROR;
+	SET refEnv.SQL.SQLSTATE 		= chrSQLSTATE;
+END;
+
+/*
+* Obtiene codigo error tecnico de BD
+*/
+CREATE PROCEDURE obtenerCodMsjErrorBD(IN refExceptionList REFERENCE, IN refEnvStatusRes REFERENCE,IN refEnvSQL REFERENCE,IN refCacheSrv REFERENCE,IN refCacheEqv REFERENCE) 
+BEGIN
+	
+	IF(LASTMOVE(refExceptionList)) THEN
+		CALL obtenerCodMsjError(refExceptionList,refEnvStatusRes);
+	END IF;
+ 
+		SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302();
+	SET refEnvStatusRes.status.busResponseMessage = getMSJ_ERROR(getCOD_ERROR_302());    			
+	
+	IF (refEnvSQL.SQLCODE IS NOT NULL) THEN
+		
+		SET refEnvStatusRes.status.busResponseCode 		= '0';
+		SET refEnvStatusRes.status.busResponseMessage 	= 'EJECUCION CON EXITO';    	
+		SET refEnvStatusRes.detalleError 				= refEnvSQL.SQLERRORTEXT;
+		SET refEnvStatusRes.status.srvResponseCode 		= RIGHT('0000' ||COALESCE(CAST(refEnvSQL.SQLNATIVEERROR AS CHARACTER),''),4);
+		SET refEnvStatusRes.status.srvResponseMessage 	= refEnvSQL.SQLERRORTEXT;
+	
+	END IF;
+END;
+
+/*
+* Genera cabecera error BD
+*/
+CREATE PROCEDURE createHeaderErrorBD(IN refOut REFERENCE,IN refEnv REFERENCE,IN refOutLocalEnv REFERENCE,IN chrCodSrvRes CHARACTER,IN intCodLong INTEGER,IN chrMsjSrvRes CHARACTER)
+BEGIN
+	
+	IF chrCodSrvRes IS NOT NULL THEN
+	
+		DECLARE chrCodRes CHARACTER FormatAlignCadena(chrCodSrvRes,intCodLong,'0','DER');
+		CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,chrCodRes,chrMsjSrvRes);
+		
+		IF (chrMsjSrvRes = '') THEN
+			CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,chrCodSrvRes,C_MSJ_ERROR_CICS);
+		END IF;
+		
+		IF (chrCodRes = REPLICATE('0',intCodLong)) THEN
+			CALL createResponseStatus(refEnv,C_TIP_ERROR_0,C_COD_EXITO_ESB,C_MSJ_EXITO_ESB,CAST(C_COD_ERROR_CICS AS CHARACTER),C_MSJ_ERROR_CICS);
+		END IF;
+	END IF;
+	
+	CALL obtenerEquivalenciaRespuestaCICS(refEnv.StatusRes,refEnv,refEnv.Equivalencias);
+	
+	SET refOutLocalEnv.Destination.HTTP.ReplyStatusCode = getEST_COD_209();
+ 	CALL createHeaderBus(refOut,refEnv);
+END;
+
+
+CREATE PROCEDURE loadDynamicCDICCOMD(IN refEnv REFERENCE, 
+									IN tramaCode CHARACTER, 
+									IN operationType CHARACTER, 
+									IN isExt CHARACTER,
+									IN operationNumber INTEGER, 
+									IN authNumber INTEGER, 
+									IN extNumber INTEGER)
+BEGIN
+	
+	SET refEnv.ParamsHOST.tramaCode 	= COALESCE(tramaCode,'');
+	SET refEnv.ParamsHOST.operationType = COALESCE(operationType,'');
+	SET refEnv.ParamsHOST.isExt 		= COALESCE(isExt,'');
+	
+	SET refEnv.ParamsHOST.operationNumber 	=  COALESCE(operationNumber,0);
+	SET refEnv.ParamsHOST.authNumber 		=  COALESCE(authNumber,0);
+	SET refEnv.ParamsHOST.extNumber 		=  COALESCE(extNumber,0);
+	
+END;
+
+CREATE PROCEDURE loadDynamicBSECCOMD(IN refEnv REFERENCE, 
+									IN tramaCode CHARACTER, 
+									IN operationType CHARACTER, 
+									IN isExt CHARACTER,
+									IN operationNumber INTEGER, 
+									IN authNumber INTEGER, 
+									IN extNumber INTEGER)
+BEGIN
+	
+	SET refEnv.ParamsHOST.tramaCode 	= COALESCE(tramaCode,'');
+	SET refEnv.ParamsHOST.operationType = COALESCE(operationType,'');
+	SET refEnv.ParamsHOST.isExt 		= COALESCE(isExt,'');
+	
+	SET refEnv.ParamsHOST.operationNumber 	=  COALESCE(operationNumber,0);
+	SET refEnv.ParamsHOST.authNumber 		=  COALESCE(authNumber,0);
+	SET refEnv.ParamsHOST.extNumber 		=  COALESCE(extNumber,0);
+	
+END;
+
+CREATE FUNCTION getCharFromDecimal(
+IN txt_numero CHARACTER,
+IN int_signo INTEGER,
+IN int_enteros INTEGER,
+IN int_decimales INTEGER,
+IN flag_pto_decimal BOOLEAN) RETURNS CHARACTER BEGIN
+	DECLARE txt_numero_formateado CHARACTER;
+	DECLARE flag_nulo_blanco BOOLEAN FALSE;
+	DECLARE txt_signo CHARACTER '';
+
+	DECLARE dec_numero DECIMAL;
+
+	SET dec_numero = CAST(txt_numero AS DECIMAL DEFAULT 0.0);
+	SET dec_numero = ROUND(dec_numero, int_decimales MODE ROUND_HALF_UP);
+
+	IF int_signo = 1 THEN -- Aplica el signo
+		IF dec_numero >= 0.0 THEN
+			SET txt_signo = '+';
+		ELSE
+			SET txt_signo = '-';
+		END IF;
+	END IF;
+	SET dec_numero = ABS(dec_numero);
+	SET txt_numero = CAST(dec_numero AS CHARACTER);
+
+	DECLARE int_replicate_ceros INTEGER;
+
+	SET int_replicate_ceros = int_enteros + int_decimales + 1 - LENGTH (txt_numero);
+	SET txt_numero_formateado = txt_signo || REPLICATE('0',int_replicate_ceros) || txt_numero;
+
+	IF (flag_pto_decimal = false) THEN
+		SET txt_numero_formateado = REPLACE(txt_numero_formateado,'.','');
+	END IF;
+
+	RETURN txt_numero_formateado;
+END;
+
+CREATE FUNCTION getDecimalVal(
+	IN numero REFERENCE,
+	IN int_decimales INTEGER) RETURNS DECIMAL 
+	BEGIN
+	
+		DECLARE dec_numero DECIMAL;
+	
+		SET dec_numero = CAST(numero AS DECIMAL DEFAULT 0.0);
+		SET dec_numero = ROUND(dec_numero, int_decimales MODE ROUND_HALF_UP);
+	
+		RETURN dec_numero;
+END;

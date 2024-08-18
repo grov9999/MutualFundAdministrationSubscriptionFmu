@@ -1,0 +1,293 @@
+BROKER SCHEMA pe.ibk.common
+
+   CREATE PROCEDURE getEnvironmentVariables(IN _currency CHARACTER) RETURNS CHARACTER
+   -- This function allows get the variables from configmap or host
+   	LANGUAGE JAVA 
+   	EXTERNAL NAME "java.lang.System.getenv";
+
+   CREATE FUNCTION padding(IN _string CHARACTER, IN _length INT, IN _padding CHAR, IN _position CHARACTER) RETURNS CHAR
+   -- This Function will pad a string to a specific length. 
+   -- stringValue : value to padding
+   -- lenght1 : padding lenght
+   -- padding : padding character
+   -- position1 : padding LEFT or RIGHT
+   BEGIN
+      DECLARE result CHARACTER;
+      
+      IF LENGTH( _string ) < _length THEN
+      	
+      		DECLARE v_textPadding CHAR;
+      		DECLARE v_paddingLenght INTEGER;
+      		
+      		SET v_textPadding = '';
+      		SET v_paddingLenght = _length - LENGTH( _string );
+			
+			DECLARE i INTEGER;
+			SET i = 1;
+			X : REPEAT
+			  
+			  SET v_textPadding = v_textPadding || _padding;
+			 
+			  SET i = i + 1;
+			UNTIL
+			  i > v_paddingLenght
+			END REPEAT X;
+		 
+      	 IF _position = 'LEFT' THEN	
+         	SET result =  v_textPadding || _string;
+      	 ELSEIF _position = 'RIGHT' then         
+      	 	SET result = _string || v_textPadding;
+      	 END IF;
+      ELSE
+         SET result = _string;
+      END IF;
+      
+      RETURN result;
+   END;
+   
+   
+   CREATE FUNCTION convertToDateISO8601(IN _century INT, IN _year INT, IN _month INT, IN _day INT) RETURNS CHARACTER
+   -- This function convert to date in format ISO8601 'YYYY-MM-DD'
+   BEGIN
+      DECLARE result CHAR;
+      
+      IF (_month = 0 OR _day = 0) THEN
+      	SET	result = NULL;
+      ELSE
+      	
+      	--Century
+      	DECLARE v_century CHARACTER; 
+      	DECLARE v_year    CHARACTER;
+      	
+      	SET v_century = padding(CAST(_century AS CHARACTER), 2, '0', 'LEFT');
+      	SET v_year    = padding(CAST(_year    AS CHARACTER), 2, '0', 'LEFT');
+      	
+      	--to date      	 
+      	DECLARE target DATE;
+      	SET target = CAST(CAST(v_century || v_year AS INTEGER), _month, _day  AS DATE DEFAULT NULL);
+      	
+      	--result
+      	SET result = CAST(target AS CHARACTER FORMAT 'yyyy-MM-dd');
+      	
+      END IF;
+      
+      RETURN result;
+   END;
+   
+   CREATE FUNCTION convertToDate(IN _date CHARACTER, IN _sourcePattern CHARACTER) RETURNS CHARACTER
+   -- This function convert string to date in format ISO8601 'YYYY-MM-DD'
+   BEGIN
+      DECLARE result CHAR;
+      
+      IF (_date = null OR _date = '' or _date = '00000000') THEN
+      	SET	result = NULL;
+      ELSE
+      	
+      	--to date
+		DECLARE target DATE;
+		SET target = CAST(convertMonthFromEStoEN(_date) AS DATE FORMAT _sourcePattern DEFAULT NULL);
+      	
+      	--result
+      	SET result = CAST(target AS CHARACTER FORMAT 'yyyy-MM-dd');
+      	
+      END IF;
+      
+      RETURN result;
+   END;
+  
+  CREATE FUNCTION convertMonthFromEStoEN (IN _date CHARACTER) RETURNS CHARACTER
+   -- This function convert the months from Spanish to English
+   BEGIN
+      DECLARE result CHAR;
+      DECLARE currentMonth CHAR;
+      
+      SET currentMonth = SUBSTRING(_date FROM 3 FOR 3);
+      
+      CASE currentMonth
+	      WHEN 'ENE' THEN
+	      	SET result = REPLACE(_date, 'ENE', 'JAN');
+	      WHEN 'ABR' THEN
+	      	SET result = REPLACE(_date, 'ABR', 'APR');
+	      WHEN 'AGO' THEN
+	      	SET result = REPLACE(_date, 'AGO', 'AUG');
+	      WHEN 'SET' THEN
+	      	SET result = REPLACE(_date, 'SET', 'SEP');
+	      WHEN 'DIC' THEN
+	      	SET result = REPLACE(_date, 'DIC', 'DEC');
+	      ELSE
+	      	SET result = _date;
+      END CASE;
+      
+      RETURN result;
+   END;
+   
+   CREATE FUNCTION initialTime() RETURNS INTEGER
+   -- This function calculate the request time to send to New Relic 
+   BEGIN
+      
+      -- Initial time 
+	  DECLARE EpocTimeStamp TIMESTAMP;
+	  DECLARE eventTimeStamp INTERVAL;
+	  DECLARE initialTime INTEGER;
+	
+	  SET EpocTimeStamp = TIMESTAMP '1970-01-01 00:00:00';
+	  SET eventTimeStamp = (CURRENT_TIMESTAMP - EpocTimeStamp) SECOND * 1000;
+	  SET initialTime = CAST(eventTimeStamp AS INTEGER);
+      
+      RETURN initialTime;
+   END;
+   
+   CREATE FUNCTION calculateRequestTime (IN _initialTime INTEGER) RETURNS INTEGER
+   -- This function calculate the request time to send to New Relic 
+   BEGIN
+      
+      -- Variables to duration
+	  DECLARE EpocTimeStamp TIMESTAMP; 
+	  DECLARE eventTimeStamp INTERVAL; 
+	  DECLARE finalTime INTEGER;
+		
+      -- Calculate final time
+	  SET EpocTimeStamp = TIMESTAMP '1970-01-01 00:00:00'; 
+	  SET eventTimeStamp = (CURRENT_TIMESTAMP - EpocTimeStamp) SECOND * 1000;   
+	  SET finalTime = CAST(eventTimeStamp AS INTEGER) - _initialTime;
+      
+      RETURN finalTime;
+   END;
+
+   CREATE FUNCTION getLastExceptionDetail(IN InputExceptionList REFERENCE) RETURNS CHARACTER
+		/****************************************************************************
+		* A function that will get the details of the last exception from a message
+		* IN InputExceptionList: The incoming exception list
+		* OUT messageText: The last message text.
+		*****************************************************************************/
+   BEGIN
+   	
+   		DECLARE messageText CHARACTER;
+   		
+		-- Create a reference to the first child of the exception list
+		DECLARE ptrException reference to InputExceptionList.*[1];
+		-- keep looping while the moves to the child of exception list work
+		WHILE lastmove(ptrException) DO
+			-- store the current values for the error number and text
+			IF ptrException.Number is not null THEN
+				SET messageText = ptrException.Insert.Text;
+				
+				IF (messageText IS NULL OR messageText ='')	THEN			
+					SET messageText = ptrException.Text;
+				END IF;
+				
+			END IF;
+			-- now move to the last child which should be the next exceptionlist
+			move ptrException lastchild;
+		END WHILE;
+		
+		RETURN messageText;
+   END;
+   
+   CREATE FUNCTION getFullExceptionDetail(IN InputExceptionList REFERENCE) RETURNS CHARACTER
+		/****************************************************************************
+		* A function that will get the full exception details from a message
+		* IN InputExceptionList: The incoming exception list
+		* OUT messageText: The exception detail in message text.
+		*****************************************************************************/
+   BEGIN
+   	
+   		DECLARE messageText CHARACTER;
+   		
+		DECLARE tmp ROW;                                                
+		CREATE LASTCHILD OF tmp DOMAIN('XMLNSC') NAME 'XMLNSC';         
+		SET tmp.XMLNSC.ExceptionList = InputExceptionList;              
+		SET tmp.BLOB = ASBITSTREAM(tmp.XMLNSC.ExceptionList OPTIONS     
+		FolderBitStream CCSID 1208);
+		DECLARE FULLEXCEPTION CHAR CAST(tmp.BLOB AS CHAR CCSID 1208);
+		
+		SET messageText =  FULLEXCEPTION;
+		
+		RETURN messageText;
+   END;
+   
+CREATE FUNCTION getFormatDecimalCics(
+	IN txt_numero CHARACTER,
+	IN int_signo INTEGER,
+	IN int_enteros INTEGER,
+	IN int_decimales INTEGER,
+	IN flag_pto_decimal BOOLEAN) RETURNS CHARACTER 
+	
+BEGIN
+	
+	DECLARE txt_numero_formateado CHARACTER;
+	DECLARE flag_nulo_blanco BOOLEAN FALSE;
+	DECLARE txt_signo CHARACTER '';
+
+	DECLARE dec_numero DECIMAL;
+
+	SET dec_numero = CAST(txt_numero AS DECIMAL DEFAULT 0.0);
+	SET dec_numero = ROUND(dec_numero, int_decimales MODE ROUND_HALF_UP);
+
+	IF int_signo = 1 THEN -- Aplica el signo
+		IF dec_numero >= 0.0 THEN
+			SET txt_signo = '+';
+		ELSE
+			SET txt_signo = '-';
+		END IF;
+	END IF;
+	
+	SET dec_numero = ABS(dec_numero);
+	SET txt_numero = CAST(dec_numero AS CHARACTER);
+
+	DECLARE int_replicate_ceros INTEGER;
+
+	SET int_replicate_ceros = int_enteros + int_decimales + 1 - LENGTH (txt_numero);
+	SET txt_numero_formateado = txt_signo || REPLICATE('0',int_replicate_ceros) || txt_numero;
+
+	IF (flag_pto_decimal = false) THEN
+		SET txt_numero_formateado = REPLACE(txt_numero_formateado,'.','');
+	END IF;
+
+	RETURN txt_numero_formateado;
+	
+END;
+
+CREATE FUNCTION get_Signo_Numero(
+	IN arg_signo CHARACTER) RETURNS INTEGER
+BEGIN
+	DECLARE int_signo INTEGER 1;
+	IF (arg_signo = '-') THEN
+		SET int_signo = -1;
+	END IF;
+	RETURN int_signo;
+END;
+
+CREATE FUNCTION get_Boolean_OF_Character(
+	IN arg_valor_comparar CHARACTER,
+	IN arg_valor_true CHARACTER) RETURNS BOOLEAN
+BEGIN
+
+	DECLARE boo_respuesta BOOLEAN false;
+
+	IF (UCASE(arg_valor_comparar) = UCASE(arg_valor_true)) THEN
+		SET boo_respuesta = true;
+	END IF;
+
+	RETURN boo_respuesta;
+END;
+
+CREATE FUNCTION enmascararNumeroTarjeta(IN valor CHARACTER, 
+										IN totalDigInicial INTEGER,										 
+										IN totalDigFinal INTEGER,
+										IN chrPadding CHARACTER) RETURNS CHARACTER 
+BEGIN
+	
+	DECLARE resultado CHARACTER '';
+	DECLARE totalDigOfuscar INTEGER (LENGTH(valor)-totalDigInicial-totalDigFinal);
+	
+	IF COALESCE(valor, '') <> '' THEN
+	  SET resultado = LEFT(valor, totalDigInicial) || REPLICATE(chrPadding,totalDigOfuscar) || RIGHT(valor, totalDigFinal);
+	END IF;
+	
+	RETURN resultado;
+  
+END;
+	
+  
+

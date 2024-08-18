@@ -1,0 +1,78 @@
+BROKER SCHEMA pe.ibk.common
+
+CREATE FUNCTION getExternalVariables(IN input REFERENCE, IN variableName CHARACTER)
+-- Initialize the variable with JSON string
+-- Retrieve all currency values from configmap
+BEGIN
+	DECLARE currencyJson CHARACTER;
+	
+	-- This function was implemented in utilities.esql
+	SET currencyJson = getEnvironmentVariables(variableName);
+	  
+	-- converting JSON string into JSON object
+	DECLARE dataAsBit BIT CAST(currencyJson AS BIT CCSID 1208);
+	CREATE LASTCHILD OF input DOMAIN 'JSON' PARSE(dataAsBit CCSID 1208); 
+END;
+
+CREATE FUNCTION currencyTransformation(IN _currency CHARACTER, IN input REFERENCE) RETURNS CHAR
+-- This function transforms currency into the mainframe equivalent currency 
+-- _currency : currency to transform
+BEGIN
+	DECLARE result CHARACTER;	
+	
+	-- Call function that allows to build a json object
+	CALL getExternalVariables(input, 'COMMONS_UTILITIES_VALUES');
+	
+	-- Ignored those warning messages, because they are being built at runtime
+	IF (_currency = input.JSON.Data.Currencies.currency_1) THEN
+		  SET result = input.JSON.Data.Results.result_1;
+	ELSEIF (_currency = input.JSON.Data.Currencies.currency_2) THEN
+		  SET result = input.JSON.Data.Results.result_2;
+	ELSE
+		  SET result = input.JSON.Data.Results.result_3;
+	END IF;
+	
+	-- Delete json object from three root of the message
+	DELETE LASTCHILD OF input;
+	  
+	RETURN result;
+END;
+
+CREATE FUNCTION categoryTransformation(IN _product CHARACTER, IN _subProduct CHARACTER, IN input REFERENCE) RETURNS CHAR
+-- This function transforms category into the mainframe equivalent category 
+-- _product : product to transform
+-- _subProduct : subProduct to transform
+BEGIN
+	DECLARE result CHARACTER;
+	
+	-- Call function that allows to build a json object
+	CALL getExternalVariables(input, 'COMMONS_UTILITIES_VALUES');
+	 
+	-- Ignored those warning messages, because they are being built at runtime
+	IF (_product = input.JSON.Data.Product.product_1) THEN
+		SET result = input.JSON.Data.Results.result_4;	
+	ELSEIF (_product = input.JSON.Data.Product.product_2) THEN
+		SET result = input.JSON.Data.Results.result_5;	
+	ELSE
+		
+		IF ( 
+			 (_product = input.JSON.Data.Product.product_3 OR _product = input.JSON.Data.Product.product_4) 
+			 AND 
+			 (
+				 _subProduct = input.JSON.Data.SubProduct.subProduct_1 OR _subProduct = input.JSON.Data.SubProduct.subProduct_2 OR
+				 _subProduct = input.JSON.Data.SubProduct.subProduct_3 OR _subProduct = input.JSON.Data.SubProduct.subProduct_4 OR _subProduct = input.JSON.Data.SubProduct.subProduct_5
+			 )
+		   ) 
+		THEN 
+			SET result = input.JSON.Data.Results.result_5; 
+		ELSE 
+			SET result = input.JSON.Data.Results.result_6;
+		END IF;  
+		
+	END IF;	
+	
+	-- Delete json object from three root of the message
+	DELETE LASTCHILD OF input;
+	  
+	RETURN result;
+END;

@@ -1,0 +1,24 @@
+BROKER SCHEMA pe.ibk.common
+
+/*
+ * Funciones que manejan la fecha y hora de la auditoria en BD
+*/
+CREATE FUNCTION getDateTime()
+RETURNS CHARACTER
+BEGIN
+	RETURN CAST(CURRENT_TIMESTAMP AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss.SSSSSS');				
+END;
+
+
+/*
+ * Funciones que manejan la fecha y hora de la auditoria en BD
+*/
+CREATE FUNCTION getElapsedTime( IN refInput REFERENCE  )
+RETURNS DECIMAL
+BEGIN
+	DECLARE startTime TIMESTAMP CAST( refInput.StartTime AS TIMESTAMP);
+	DECLARE endTime TIMESTAMP CAST( refInput.EndTime AS TIMESTAMP);
+	
+	RETURN CAST( ( endTime - startTime) SECOND AS DECIMAL );				
+END;
+

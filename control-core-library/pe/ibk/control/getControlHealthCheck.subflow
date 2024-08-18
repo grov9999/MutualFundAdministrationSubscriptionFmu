@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmCompute.msgnode="ComIbmCompute.msgnode" xmlns:ComIbmTrace.msgnode="ComIbmTrace.msgnode" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="pe/ibk/control/getControlHealthCheck.subflow" nsPrefix="pe_ibk_control_getControlHealthCheck.subflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1" useDefaults="true" udpSupport="true">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <translation xmi:type="utility:TranslatableString" key="getControlHealthCheck" bundleName="pe/ibk/control/getControlHealthCheck" pluginId="control-core-library"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/control-core-library/icons/full/obj16/getControlHealthCheck.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/control-core-library/icons/full/obj30/getControlHealthCheck.gif"/>
+    <composition>
+      <nodes xmi:type="eflow:FCMSource" xmi:id="InTerminal.Input" location="20,20">
+        <translation xmi:type="utility:TranslatableString" key="InTerminal.Input" bundleName="pe/ibk/control/getControlHealthCheck" pluginId="control-core-library"/>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSink" xmi:id="OutTerminal.Output" location="306,21">
+        <translation xmi:type="utility:TranslatableString" key="OutTerminal.Output" bundleName="pe/ibk/control/getControlHealthCheck" pluginId="control-core-library"/>
+      </nodes>
+      <nodes xmi:type="ComIbmCompute.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="144,20" computeExpression="esql://routine/pe.ibk.control#getControlHealthCheck.Main">
+        <translation xmi:type="utility:ConstantString" string="Compute"/>
+      </nodes>
+      <nodes xmi:type="ComIbmTrace.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="123,77" destination="file" filePath="D:\aceuser\debug\health.log" pattern="**********************************Debug1 getOptions******************************************&#xD;&#xA;**********************************INICIO**************************************************&#xD;&#xA;************************************************************************************************&#xD;&#xA;&#xD;&#xA;CURRENT_TIMESTAMP :  ${CURRENT_TIMESTAMP}&#xA;&#xA;Broker: ${BrokerName}&#xA;IntegrationServerName: ${ExecutionGroupLabel}&#xA;Operation: ${LocalEnvironment.REST.Input.Operation}&#xA;Method: ${LocalEnvironment.REST.Input.Method}&#xA;&#xA;--------------&#xD;&#xA;--Root&#xA;--------------&#xD;&#xA;${Root}&#xD;&#xA;--------------&#xD;&#xA;--LocalEnvironment&#xD;&#xA;--------------&#xD;&#xA;${LocalEnvironment}&#xA;--------------&#xA;">
+        <translation xmi:type="utility:ConstantString" string="TDebug_1"/>
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="OutTerminal.Output" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_2" sourceNode="InTerminal.Input" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="FCMComposite_1_1" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer/>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

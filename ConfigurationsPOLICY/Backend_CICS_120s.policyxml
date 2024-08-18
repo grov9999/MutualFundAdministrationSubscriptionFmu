@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policies>
+  <policy policyType="CICSConnection" policyName="Backend_CICS_120s" policyTemplate="CICSConnection">
+    <cicsServer>tcp://10.11.37.81:3188</cicsServer>
+    <gatewayURL>local:</gatewayURL>
+    <clientApplid></clientApplid>
+    <clientQualifier></clientQualifier>
+    <connectionTimeoutSecs>120</connectionTimeoutSecs>
+    <requestTimeoutSecs>120</requestTimeoutSecs>
+    <securityIdentity></securityIdentity>
+    <egForXARecovery></egForXARecovery>
+    <sslKeystoreLocation></sslKeystoreLocation>
+    <sslKeystoreSecurityIdentity></sslKeystoreSecurityIdentity>
+  </policy>
+</policies>

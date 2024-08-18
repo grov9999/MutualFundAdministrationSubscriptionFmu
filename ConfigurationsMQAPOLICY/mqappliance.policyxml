@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policies>
+  <policy policyType="MQEndpoint" policyName="mqappliance" policyTemplate="MQEndpoint">
+    <connection>CCDT</connection>
+    <destinationQueueManagerName>*QMAPPLIANCE_IFX</destinationQueueManagerName>
+    <queueManagerHostname></queueManagerHostname>
+    <listenerPortNumber></listenerPortNumber>
+    <channelName></channelName>
+    <securityIdentity>mqappliance</securityIdentity>
+    <useSSL>false</useSSL>
+    <SSLPeerName></SSLPeerName>
+    <SSLCipherSpec></SSLCipherSpec>
+    <SSLCertificateLabel></SSLCertificateLabel>
+    <reconnectOption>default</reconnectOption>
+  </policy>
+</policies>

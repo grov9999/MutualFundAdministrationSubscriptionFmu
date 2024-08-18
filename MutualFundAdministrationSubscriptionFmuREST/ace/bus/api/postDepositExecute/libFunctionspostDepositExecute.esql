@@ -1,0 +1,137 @@
+BROKER SCHEMA ace.bus.api.postDepositExecute
+PATH ace.bus.api.postDepositExecute, pe.ibk.common;
+
+CREATE PROCEDURE prepareDataRequestCICS(IN refOut REFERENCE, IN refEnv REFERENCE, IN refParameters REFERENCE, IN refBodyIn REFERENCE)
+BEGIN
+
+	DECLARE refBody REFERENCE TO refOut;
+	DECLARE isBSEOJIN CHARACTER getParmSecSrv(refEnv, 'BSEOJIN');
+
+	IF isBSEOJIN = 'S' THEN
+		CALL prepareHeaderBSEOJINT( refOut, refEnv, C_NS, refParameters, C_POS_COD_RESP, C_LONG_COD_RESP );
+		CREATE FIELD refOut.{C_NS}:MESSAGEHOST.BODY AS refOut;
+	ELSE
+		CALL prepareHeaderBSE(refOut,refParameters);
+		CREATE FIELD refOut.{C_MESSAGE_TYPE} AS refOut;
+	END IF;
+	/* Configurar la data del mensaje */
+	CALL prepareDataCICS(refEnv,refOut,refBodyIn,refParameters);
+
+END;
+
+CREATE PROCEDURE prepareDataCICS(IN refEnv REFERENCE,IN refOut REFERENCE,IN refBody REFERENCE, IN refParameters REFERENCE)
+BEGIN
+	
+	CREATE FIELD refOut.BSEC710P_BSECXCOM;
+	CREATE FIELD refOut.BSEC710P_DATOS_INPUT;
+	
+	SET refOut.BSEC710P_BSECXCOM = prepararRequestTxCommonDataBse(refBody.bseInformation);
+	
+	DECLARE refBodyOut REFERENCE TO refOut.BSEC710P_DATOS_INPUT;
+    SET refBodyOut.BSEC710P_COUNI = FormatAlignCadena(refBody.uniqueCode, 10, ' ', 'IZQ');
+    SET refBodyOut.BSEC710P_NUM_CTFM = FormatAlignCadena(refBody.contractNumberMutualFund, 7, ' ', 'IZQ');
+    SET refBodyOut.BSEC710P_COFON = FormatAlignCadena(refBody.investmentFundType, 2, ' ', 'IZQ');
+    SET refBodyOut.BSEC710P_DEPRV = FormatAlignCadena(refBody.vendorCode, 8, ' ', 'IZQ');
+    SET refBodyOut.BSEC710P_IND_ITF = FormatAlignCadena(refBody.ITFFlag, 1, ' ', 'IZQ');
+    SET refBodyOut.BSEC710P_FILLER_INPUT = FormatAlignCadena(' ', 107, ' ', 'IZQ');
+
+END;
+
+CREATE PROCEDURE prepareResponseJSON(IN refOut REFERENCE, IN refEnv REFERENCE)
+BEGIN
+
+	CREATE LASTCHILD OF refOut DOMAIN 'JSON';
+	CREATE FIELD refOut.JSON.Data;
+	DECLARE refOutData REFERENCE TO refOut.JSON.Data;
+
+
+	SET refOutData.operationNumber = 'string';
+	SET refOutData.operationDate = 'string';
+	SET refOutData.requestNumber = 'string';
+	SET refOutData.signCommission = 'string';
+	SET refOutData.commision = 'string';
+	SET refOutData.signCommissionIGV = 'string';
+	SET refOutData.commisionIGV = 'string';
+	SET refOutData.account = 'string';
+	SET refOutData.placeNumber = 'string';
+	SET refOutData.description = 'string';
+	SET refOutData.description1 = 'string';
+	SET refOutData.description2 = 'string';
+	SET refOutData.administrativeTaxCommission = 'string';
+	SET refOutData.rescueTaxCommission = 'string';
+	SET refOutData.productDescription = 'string';
+	SET refOutData.documentDescription = 'string';
+
+END;
+/*
+* Prepara Request de envio segun la copy BSECXCOM
+*/
+CREATE FUNCTION prepararRequestTxCommonDataBse(IN refBodyIn REFERENCE) RETURNS CHARACTER
+BEGIN
+	DECLARE chrBseIn, chrBseMP CHARACTER '';
+	SET chrBseIn = FormatAlignCadena(COALESCE(refBodyIn.documentTypeId,''),2,'0','DER')||
+	FormatAlignCadena(COALESCE(refBodyIn.documentNumber,''),11,' ','IZQ')||
+	FormatAlignCadena(COALESCE(refBodyIn.transactionCurrencyCode,''),3,' ','IZQ')||
+	FormatAlignCadena(COALESCE(TRIM(getFormatDecimalCics(CAST(refBodyIn.transactionAmount AS CHARACTER),0,13,2,false)),'0'),15,'0','DER') ||
+	FormatAlignCadena(COALESCE(TRIM(getFormatDecimalCics(CAST(refBodyIn.purchaseExchangeRate AS CHARACTER),0,11,6,false)),'0'),17,'0','DER') ||
+	FormatAlignCadena(COALESCE(TRIM(getFormatDecimalCics(CAST(refBodyIn.saleExchangeRate AS CHARACTER),0,11,6,false)),'0'),17,'0','DER')||
+	FormatAlignCadena('',113,' ','IZQ');
+
+	DECLARE refPaymentMethodList REFERENCE TO refBodyIn.paymentMethods;
+
+	DECLARE J INTEGER 1;
+	WHILE J <= 2 DO
+
+		SET chrBseMP = chrBseMP ||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].paymentMethodCode,''),2,' ','IZQ')||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].operationType,''),1,' ','IZQ')||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].currencyCode,''),3,' ','IZQ')||
+		FormatAlignCadena(COALESCE(TRIM(getFormatDecimalCics(CAST(refPaymentMethodList.paymentMethod[J].amount AS CHARACTER),0,13,2,false)),'0'),15,'0','DER') ||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].equivalentCurrencyCode,''),3,' ','IZQ')||
+		FormatAlignCadena(COALESCE(TRIM(getFormatDecimalCics(CAST(refPaymentMethodList.paymentMethod[J].arbitrationChange AS CHARACTER),0,9,6,false)),'0'),15,'0','DER') ||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].tradingRateFlag,''),1,' ','IZQ')||
+		FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].taxFlag,''),1,' ','IZQ');
+		--MEDIO DE PAGO - 04 - CUENTA CLIENTE
+		IF refPaymentMethodList.paymentMethod[J].paymentMethodCode = '04' THEN
+			SET chrBseMP = chrBseMP ||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.controlAccountCode.bankCode,''),2,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.controlAccountCode.currencyCode,''),3,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.controlAccountCode.productCode,''),3,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.controlAccountNumber.branchCode,''),3,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.controlAccountNumber.account,''),10,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.electronNumber,''),16,' ','IZQ')||
+			FormatAlignCadena('',19,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.retentionType,'0'),2,'0','DER')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].customerAccount.dynamicComment,''),12,' ','IZQ');
+			--MEDIO DE PAGO - 05 - CUENTA CONTABLE
+		ELSEIF refPaymentMethodList.paymentMethod[J].paymentMethodCode = '05' THEN
+			SET chrBseMP = chrBseMP ||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].accountingAccount.branchSenderCode,''),3,'0','DER')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].accountingAccount.branchReceiverCode,''),3,'0','DER')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].accountingAccount.accountingAccountNumber,''),14,'0','DER')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].accountingAccount.noteNumber,''),8,'0','DER')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].accountingAccount.taxFlagITF,''),1,' ','IZQ')||
+			FormatAlignCadena('',41,' ','IZQ');
+			/*MEDIO DE PAGO
+			06 - TARJETA DE CREDITO
+			61 - COMPRA TARJETA DE CREDITO
+			62 - DISPOSICION DE EFECTIVO
+			63 - PAGO DE TARJETA*/
+		ELSEIF (refPaymentMethodList.paymentMethod[J].paymentMethodCode = '06' OR refPaymentMethodList.paymentMethod[J].paymentMethodCode = '61' OR
+			refPaymentMethodList.paymentMethod[J].paymentMethodCode = '62' OR refPaymentMethodList.paymentMethod[J].paymentMethodCode = '63') THEN
+			SET chrBseMP = chrBseMP ||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].creditCardInfo.creditCardNumber,''),19,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].creditCardInfo.cardHolderFlag,''),1,' ','IZQ')||
+			FormatAlignCadena(COALESCE(refPaymentMethodList.paymentMethod[J].creditCardInfo.dynamicGloss,''),25,' ','IZQ')||
+			FormatAlignCadena('',25,' ','IZQ');
+		ELSE
+			SET chrBseMP = chrBseMP || FormatAlignCadena('',70,' ','IZQ');
+		END IF;
+		SET J = J + 1;
+	END WHILE;
+
+	DECLARE chrCics CHARACTER chrBseIn||chrBseMP;
+
+	RETURN FormatAlignCadena(chrCics,700,' ','IZQ');
+
+END;

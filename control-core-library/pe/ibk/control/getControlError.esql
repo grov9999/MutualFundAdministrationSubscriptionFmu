@@ -1,0 +1,36 @@
+BROKER SCHEMA pe.ibk.control
+PATH pe.ibk.common, pe.ibk.common.audit;
+
+DECLARE API_NAME EXTERNAL CHARACTER 'DEFAULT';
+
+CREATE COMPUTE MODULE getControlError_ErrorHandler
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		/** Store the exception in the environemnt DataAudit **/
+		SET Environment.DataAudit.ExceptionDetail = getFullExceptionDetail( InputExceptionList );
+		
+		DECLARE FinalizarFlujo BOOLEAN;
+		SET FinalizarFlujo = FALSE;
+		CALL validarCodigoErrorControlado(InputExceptionList,FinalizarFlujo);
+		
+		IF FinalizarFlujo = TRUE THEN -- Mensaje Caducado
+			RETURN FALSE;
+		ELSE
+			CREATE FIELD Environment.StatusRes;
+			CALL obtenerCodMsjError(InputExceptionList,Environment.StatusRes);
+			
+			--SET OutputLocalEnvironment.Destination.HTTP.ReplyStatusCode = 500;
+			--CALL crearRespuestaBusError(Environment.InputRoot,OutputRoot,Environment,InputLocalEnvironment,API_NAME);
+			CALL createHeaderBusError(Environment.InputRoot,OutputRoot,Environment,InputLocalEnvironment,OutputLocalEnvironment);
+			SET OutputLocalEnvironment.Destination.HTTP.RequestIdentifier=Environment.Origen.reply;
+			RETURN TRUE;
+		END IF;
+		
+		/** Audit response and reply data **/
+		CALL setMonitoringEndTime( Environment );
+		CALL getResponseDataAudit( Environment, OutputRoot, OutputLocalEnvironment, 'S' );
+		
+		
+	END;
+END MODULE;

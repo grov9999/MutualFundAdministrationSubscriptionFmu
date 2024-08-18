@@ -1,0 +1,184 @@
+BROKER SCHEMA pe.ibk.control
+
+PATH pe.ibk.common, pe.ibk.common.audit;
+
+DECLARE cacheEqv SHARED ROW;
+DECLARE cacheSrv SHARED ROW;
+DECLARE cacheAudit SHARED ROW;
+DECLARE cacheMonitorACF SHARED ROW;
+DECLARE cacheMultiPurpose SHARED ROW;
+
+CREATE FILTER MODULE getControlInitial_Filter
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		CALL setMonitoringStartTime( Environment );
+		
+		SET Environment.Origen.reply = LocalEnvironment.Destination.HTTP.RequestIdentifier;
+		SET Environment.Operation = LocalEnvironment.REST.Input.Operation;
+		SET Environment.HeadersIn = Root.HTTPInputHeader;
+		SET Environment.InputProperties = Root.Properties;
+		
+		IF cacheSrv.{LocalEnvironment.REST.Input.Operation}.sw = TRUE THEN
+			SET Environment.Parametros.{LocalEnvironment.REST.Input.Operation} = cacheSrv.Parametros.{LocalEnvironment.REST.Input.Operation};
+
+			/** Begin MDP: Reintentos **/
+			SET Environment.Reintentos.{LocalEnvironment.REST.Input.Operation} = cacheSrv.Reintentos.{LocalEnvironment.REST.Input.Operation};
+			/** End MDP: Reintentos **/
+			SET Environment.Equivalencias.{LocalEnvironment.REST.Input.Operation} = cacheEqv.Equivalencias.{LocalEnvironment.REST.Input.Operation};
+			SET Environment.Audit.{LocalEnvironment.REST.Input.Operation} = cacheAudit.Audit.{LocalEnvironment.REST.Input.Operation};
+			SET Environment.ParamsMonitorACF = cacheMonitorACF.ParamsMonitorACF;
+			SET Environment.Subscription.{LocalEnvironment.REST.Input.Operation}.key = cacheMultiPurpose.Subscription.{LocalEnvironment.REST.Input.Operation}.key;
+			SET Environment.Subscription.{LocalEnvironment.REST.Input.Operation}.secret = cacheMultiPurpose.Subscription.{LocalEnvironment.REST.Input.Operation}.secret;
+			SET Environment.EquivalenciaCampos.{LocalEnvironment.REST.Input.Operation} = cacheMultiPurpose.EquivalenciaCampos.{LocalEnvironment.REST.Input.Operation};
+			RETURN FALSE;
+		END IF;
+		
+		RETURN TRUE;
+	END;
+
+END MODULE;
+
+CREATE COMPUTE MODULE getControlInitial_SendError
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		SET cacheSrv.{Environment.Operation}.sw = FALSE;
+		THROW USER EXCEPTION MESSAGE getCOD_ERROR_401() VALUES(getMSJ_ERROR(getCOD_ERROR_401()));
+		RETURN FALSE;
+	END;
+END MODULE;
+
+CREATE COMPUTE MODULE getControlInitial_PrepareRequest
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		CALL CopyEntireMessage();
+		
+		DECLARE configText CHARACTER Environment.ConfigPolicyValue;
+		DECLARE dataConfigAsBit BIT  CAST(configText AS BIT CCSID 1208);
+		CREATE LASTCHILD OF Environment DOMAIN 'JSON' PARSE(dataConfigAsBit CCSID 1208);
+		
+		SET cacheSrv.Parametros.{Environment.Operation} = Environment.JSON.Data.Parametros;
+		SET Environment.Parametros.{Environment.Operation} = cacheSrv.Parametros.{Environment.Operation};
+			/** Begin MDP: Reintentos **/
+		IF Environment.Parametros.{Environment.Operation}.RETRY  = 'S' THEN
+			 
+			SET cacheSrv.Reintentos.{Environment.Operation} = Environment.JSON.Data.Reintentos;
+			SET Environment.Reintentos.{Environment.Operation} = cacheSrv.Reintentos.{Environment.Operation};
+			
+		END IF;
+		/** End MDP: Reintentos **/
+		
+		/** Almacenar el mensaje de Auditoria en cache **/
+		SET cacheAudit.Audit.{Environment.Operation}.RedactConfig = Environment.RedactPolicyValue;
+		SET cacheAudit.Audit.{Environment.Operation}.Namespace = Environment.Namespace;
+		SET cacheAudit.Audit.{Environment.Operation}.metadata = Environment.metadata;
+		
+		SET Environment.Audit.{Environment.Operation}.RedactConfig = cacheAudit.Audit.{Environment.Operation}.RedactConfig;
+		SET Environment.Audit.{Environment.Operation}.Namespace = cacheAudit.Audit.{Environment.Operation}.Namespace;
+		SET Environment.Audit.{Environment.Operation}.metadata = cacheAudit.Audit.{Environment.Operation}.metadata;
+
+		/** Almacenar las credenciales API CONNECT en cache **/
+		SET cacheMultiPurpose.Subscription.{Environment.Operation}.key = Environment.key;
+		SET Environment.Subscription.{Environment.Operation}.key = cacheMultiPurpose.Subscription.{Environment.Operation}.key;
+		
+		SET cacheMultiPurpose.Subscription.{Environment.Operation}.secret = Environment.secret;
+		SET Environment.Subscription.{Environment.Operation}.secret = cacheMultiPurpose.Subscription.{Environment.Operation}.secret;
+		
+		SET cacheSrv.{Environment.Operation}.sw = TRUE;
+		
+		CREATE FIELD cacheEqv.Equivalencias;
+    	CREATE FIELD cacheEqv.Equivalencias.{Environment.Operation};
+		DECLARE ref_eqv REFERENCE TO cacheEqv.Equivalencias.{Environment.Operation};
+    	
+    	FOR codRes AS Environment.JSON.Data.Equivalencias.[] DO
+			CREATE LASTCHILD OF ref_eqv NAME 'CODEQV_' || codRes.VALOR VALUE codRes.CODEQV;
+			CREATE LASTCHILD OF ref_eqv NAME 'DESEQV_' || codRes.VALOR VALUE codRes.DESEQV;
+			CREATE LASTCHILD OF ref_eqv NAME 'CATEGORIA_' ||codRes.VALOR VALUE codRes.CATEGORIA;
+    	END FOR;
+    	
+    	SET Environment.Equivalencias.{Environment.Operation} = cacheEqv.Equivalencias.{Environment.Operation};
+    	
+    	CREATE FIELD cacheMultiPurpose.EquivalenciaCampos;
+    	CREATE FIELD cacheMultiPurpose.EquivalenciaCampos.{Environment.Operation};
+		DECLARE refFieldEq REFERENCE TO cacheMultiPurpose.EquivalenciaCampos.{Environment.Operation};
+    	DECLARE tagName REFERENCE TO Environment.JSON.Data.EquivalenciaCampos.*[>];
+    	
+    	WHILE LASTMOVE(tagName) DO
+			FOR refItem AS tagName.[] DO
+				CREATE LASTCHILD OF refFieldEq NAME FIELDNAME(tagName) || '_' || refItem.original VALUE refItem.equivalencia;
+				SET Environment.Traces.FOR = FIELDNAME(tagName);
+			END FOR;
+			MOVE tagName NEXTSIBLING;
+		END WHILE;
+    	
+    	SET Environment.EquivalenciaCampos.{Environment.Operation} = cacheMultiPurpose.EquivalenciaCampos.{Environment.Operation};
+    	
+		
+		SET Environment.RedactPolicyValue = NULL;
+		SET Environment.ConfigPolicyValue = NULL;
+		SET Environment.key = NULL;
+		SET Environment.secret = NULL;
+		SET Environment.JSON = NULL;
+		
+    	IF Environment.ConfigMonitorACFValue IS NOT NULL THEN
+    		
+			DECLARE configTextMonitor CHARACTER Environment.ConfigMonitorACFValue;
+			DECLARE dataMonitorConfigAsBit BIT  CAST(configTextMonitor AS BIT CCSID 1208);
+			CREATE LASTCHILD OF Environment DOMAIN 'JSON' PARSE(dataMonitorConfigAsBit CCSID 1208);
+			
+    	END IF;
+    	
+    	SET cacheMonitorACF.ParamsMonitorACF = Environment.JSON.Data;
+    	SET Environment.ParamsMonitorACF = cacheMonitorACF.ParamsMonitorACF;
+    	
+		SET Environment.ConfigMonitorACFValue = NULL;
+		SET Environment.JSON = NULL;		
+		
+		RETURN TRUE;
+	END;
+
+	CREATE PROCEDURE CopyMessageHeaders() BEGIN
+		DECLARE I INTEGER 1;
+		DECLARE J INTEGER;
+		SET J = CARDINALITY(InputRoot.*[]);
+		WHILE I < J DO
+			SET OutputRoot.*[I] = InputRoot.*[I];
+			SET I = I + 1;
+		END WHILE;
+	END;
+
+	CREATE PROCEDURE CopyEntireMessage() BEGIN
+		SET OutputRoot = InputRoot;
+	END;
+END MODULE;
+
+CREATE FILTER MODULE getControlInitial_ValidateTypeSrv
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+ 		
+ 		DECLARE refHeadersIn REFERENCE TO Environment.HeadersIn;
+ 
+		IF (refHeadersIn.Protocolo = getID_PROTOCOLO_ENTRADA_BUS()) THEN
+			
+			IF FIELDVALUE(refHeadersIn.Fields) IS NOT NULL THEN
+				CALL split(refHeadersIn.Fields,Environment,',');
+				DECLARE paramRef REFERENCE TO Environment.Split.Array[1];
+			
+				WHILE LASTMOVE(paramRef)=TRUE DO
+					SET Environment.Parametros.{Environment.Operation}.{paramRef} = refHeadersIn.{'Rewrite_'||LCASE(paramRef)} ;
+   					MOVE paramRef NEXTSIBLING;
+				END WHILE;
+			END IF;
+		END IF;
+			/** Begin MDP: Reintentos **/
+		IF FIELDVALUE(refHeadersIn.Retrynumber) IS NULL AND Environment.Parametros.{Environment.Operation}.RETRY = 'S' THEN 
+			SET refHeadersIn.Missingretries = Environment.Reintentos.{Environment.Operation}.NRORETRY;
+			SET Environment.Parametros.{Environment.Operation} = cacheSrv.Parametros.{Environment.Operation};
+			SET refHeadersIn.Retrynumber = 0;
+		END IF;
+           /** End MDP: Reintentos **/
+		
+		RETURN FALSE;
+	END;
+	
+END MODULE;

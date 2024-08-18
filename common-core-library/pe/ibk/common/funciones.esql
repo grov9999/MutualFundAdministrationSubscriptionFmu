@@ -1,0 +1,356 @@
+BROKER SCHEMA pe.ibk.common
+
+/*
+ * Funcion que alinea a la derecha o izquierda dependiendo de la longitud y el comodin que se envie
+*/
+CREATE FUNCTION FormatAlignCadena(IN cadena CHARACTER, IN longitud INT, IN char_repeat CHARACTER, IN align CHARACTER) RETURNS CHARACTER
+BEGIN
+	/*
+	Parametros
+	align --> Indica la alineacion: IZQ -> Izquierdo, DER -> derecha
+	-- align: Para
+	*/
+	DECLARE int_length_orig INTEGER LENGTH(cadena);
+	IF (int_length_orig > longitud) THEN
+		SET cadena = LEFT(cadena, longitud);
+	ELSEIF (int_length_orig < longitud) THEN
+		IF (align = 'DER') THEN
+			SET cadena = REPLICATE(char_repeat,(longitud-int_length_orig)) || cadena;
+		ELSE
+			SET cadena = cadena || REPLICATE(char_repeat,(longitud-int_length_orig));
+		END IF;
+	END IF;
+	RETURN cadena;
+END;
+
+CREATE FUNCTION FormatAlignCadena_New(IN cadena CHARACTER, IN longitud INT, IN char_repeat CHARACTER, IN align CHARACTER, IN recort CHARACTER) RETURNS CHARACTER
+BEGIN
+	DECLARE int_length_orig INTEGER LENGTH(cadena);
+	
+	IF (int_length_orig > longitud) THEN
+            IF (LENGTH(recort) > 0) THEN
+                  IF (recort = 'DER') THEN
+                        SET cadena = LEFT(cadena, longitud);
+                  ELSE
+                        SET cadena = RIGHT(cadena, longitud); 
+                  END IF;
+            ELSE
+                  SET cadena = LEFT(cadena, longitud);
+            END IF;
+	ELSEIF (int_length_orig < longitud) THEN
+		IF (align = 'DER') THEN
+			SET cadena = REPLICATE(char_repeat,(longitud-int_length_orig)) || cadena;
+		ELSE
+			SET cadena = cadena || REPLICATE(char_repeat,(longitud-int_length_orig));
+		END IF;
+	END IF;
+	RETURN cadena;
+END;
+
+/*
+ * Controla el error para la llamada a un servicio proveedor CICS
+*/ 
+CREATE PROCEDURE createStatusErrorCICS(IN refExceptionList REFERENCE, IN refEnvStatusRes REFERENCE) 
+BEGIN
+	
+	IF CONTAINS(UPPER(refEnvStatusRes.status.srvResponseMessage),'TIMEOUT') IS TRUE THEN
+		SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_301();
+	ELSE
+		 
+		SET refEnvStatusRes.detalleError = refEnvStatusRes.status.srvResponseMessage;
+		SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302(); 
+		  			
+	END IF;
+	 
+END;
+
+/*
+ * Controla el error para la llamada a un servicio proveedor REST
+*/ 
+CREATE PROCEDURE createStatusErrorREST(IN refExceptionList REFERENCE, IN refEnvStatusRes REFERENCE,IN refInputRoot REFERENCE, IN refEnv REFERENCE) 
+BEGIN
+	CALL getCodeMsjError(refExceptionList,refEnvStatusRes);	
+	
+	IF (refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" <> 200) THEN		
+			
+		IF refInputRoot.HTTPResponseHeader.busResponseCode IS NOT NULL THEN
+			SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_500();
+			SET refEnvStatusRes.status.responseType = getTIP_RSPTA_5();
+			SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_502();
+			SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' || getMSJ_ERROR(CAST(refInputRoot.HTTPResponseHeader.busResponseCode AS INTEGER));
+		ELSE
+			SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_503();
+			SET refEnvStatusRes.status.responseType = getTIP_RSPTA_3();
+			SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302();
+			SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' || getMSJ_ERROR(getCOD_ERROR_302());
+		END IF;
+		
+		IF FIELDTYPE(refInputRoot.BLOB.BLOB) IS NOT NULL THEN
+			SET refEnvStatusRes.detalleError = CAST(refInputRoot.BLOB.BLOB AS CHARACTER CCSID refInputRoot.Properties.CodedCharSetId);
+				
+			IF CONTAINS(UPPER(refInputRoot.HTTPResponseHeader."Content-Type"), 'JSON') THEN
+				/*El backend envio un error de negocio/tecnico controlado en json*/
+				SET refEnvStatusRes.status.responseType = getTIP_RSPTA_3();
+				SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302();
+				
+				CREATE FIELD refEnvStatusRes.OutputRoot;
+				DECLARE refOutput REFERENCE TO refEnvStatusRes.OutputRoot;
+				CREATE LASTCHILD OF refOutput DOMAIN('JSON') PARSE (refInputRoot.BLOB.BLOB CCSID 819);
+				SET refEnvStatusRes.JSON = refOutput.JSON;
+				DELETE FIELD refEnvStatusRes.OutputRoot;
+				
+				IF refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" IN (401,403,404) THEN				
+					SET refEnvStatusRes.status.ReplyStatusCode = refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+					SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' || refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Line";	
+				ELSE
+					SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_500();
+					SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' || refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Line";	
+				END IF;
+				
+			ELSEIF CONTAINS(UPPER(refInputRoot.HTTPResponseHeader."Content-Type"), 'TEXT') THEN
+				
+				SET refEnvStatusRes.status.responseType = getTIP_RSPTA_3();
+				SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302();
+				
+				IF refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code" IN (401,403,404) THEN				
+					SET refEnvStatusRes.status.ReplyStatusCode = refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Code";
+					SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' || refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Line";	
+				ELSE
+					SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_500();
+					SET refEnvStatusRes.status.busResponseMessage = getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ': ' ||refInputRoot.HTTPResponseHeader."X-Original-HTTP-Status-Line";	
+				END IF;
+			END IF;
+		ELSE
+			SET refEnvStatusRes.detalleError = CAST(refEnvStatusRes.status.srvResponseCode AS CHARACTER) || ' - ' || refEnvStatusRes.status.srvResponseMessage;
+		END IF;
+							
+	ELSEIF CONTAINS(UPPER(refEnvStatusRes.status.srvResponseMessage),'TIMEOUT') IS TRUE THEN
+			SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_503();
+			SET refEnvStatusRes.status.responseType = getTIP_RSPTA_3();
+			SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_301();
+			SET refEnvStatusRes.status.busResponseMessage = getMSJ_ERROR(getCOD_ERROR_301()) || '(' || getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ').';
+			SET refEnvStatusRes.status.srvResponseCode = NULL;
+			SET refEnvStatusRes.status.srvResponseMessage = NULL;
+			
+	ELSEIF CONTAINS(UPPER(refEnvStatusRes.status.srvResponseMessage),'SOCKET') IS TRUE THEN
+			SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_503();
+			SET refEnvStatusRes.status.responseType = getTIP_RSPTA_3();
+			SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_302();
+			SET refEnvStatusRes.status.busResponseMessage = getMSJ_ERROR(getCOD_ERROR_302()) || '(' || getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ').';
+			SET refEnvStatusRes.status.srvResponseCode = NULL;
+			SET refEnvStatusRes.status.srvResponseMessage = NULL;				
+	ELSE
+		SET refEnvStatusRes.status.ReplyStatusCode = getEST_COD_500();
+    	SET refEnvStatusRes.status.responseType = getTIP_RSPTA_4();
+		SET refEnvStatusRes.status.busResponseCode = getCOD_ERROR_408();
+		SET refEnvStatusRes.status.busResponseMessage = getMSJ_ERROR(getCOD_ERROR_408()) || '(' || getParmSecSrv(refEnv,'BACKENDNAME') ||' - ' || getParmSecSrv(refEnv,'BACKENDOPERATION') || ').';
+		SET refEnvStatusRes.status.srvResponseCode = NULL;
+		SET refEnvStatusRes.status.srvResponseMessage = NULL;
+	END IF;
+END;
+
+/*
+ * Obtiene el tipo de codigo de error para poder identificar de donde se origino el problema
+*/ 
+CREATE FUNCTION obtenerTipoError(IN intCodError INTEGER) RETURNS INTEGER
+    BEGIN
+	
+ 	RETURN 
+    CASE 
+    WHEN (intCodError>0 AND intCodError<1000) THEN C_TIP_ERROR_0  --Errores lanzados por la logica del BUS
+    WHEN (intCodError>=1000 AND intCodError<=1999) THEN C_TIP_ERROR_1 --Configuracion   
+    WHEN (intCodError>=2000 AND intCodError<=2999) THEN C_TIP_ERROR_2 --Intermediario
+    WHEN (intCodError>=3000 AND intCodError<=3999) THEN C_TIP_ERROR_3 --Nodos
+    WHEN (intCodError>=4000 AND intCodError<=4999) THEN C_TIP_ERROR_4 --Nodos Incorporados
+    ELSE C_TIP_ERROR_9 --Otros
+    END;
+END;
+
+
+/*
+ * obtiene el parametro del servicio de una secuencia
+ * previamente se debe haber seteado la variable Environment.Srv.Secuencia si es que se quiere sacar 
+ * un parametro de alguna de las secciones <SECUENCIA> del archivo de configuracion del servicio.
+ * Si no se setea entonces se saca un parametro general del archivo de configuracion. 
+*/
+CREATE FUNCTION getParmSecSrv(IN refEnv REFERENCE, IN chrParm CHARACTER) 
+	RETURNS CHARACTER
+BEGIN
+	DECLARE cadena CHARACTER '';
+	
+	DECLARE operation CHARACTER refEnv.Operation;
+	DECLARE refOperation REFERENCE TO refEnv.Parametros.{operation};
+	SET cadena = CAST( COALESCE( COALESCE( refOperation.{'SERVICIO_' || refEnv.Srv.Secuence}.{chrParm}, refOperation.{chrParm} ) ,'' ) AS CHARACTER );
+	
+	RETURN cadena;
+		
+END;
+
+
+CREATE FUNCTION setParmSecSrv(IN refEnv REFERENCE, IN chrParm CHARACTER, IN chrValue CHARACTER) 
+BEGIN
+    DECLARE operation CHARACTER refEnv.Operation;
+    SET refEnv.Parametros.{operation}.{'SERVICIO_' || refEnv.Srv.Secuence}.{chrParm} = chrValue;
+END;
+
+
+/*
+* Completa una cadena con un caracter
+*/
+CREATE FUNCTION obtenerSecuencia(IN chrSec CHARACTER) RETURNS CHARACTER
+    BEGIN 
+	RETURN RIGHT('00' || chrSec,2);
+END;
+    
+/*Funcion para listas cuyo tamaño depende de un campo que esta en la salida
+longitudFija: Es la sumatoria de los tamanios de los campos que siempre vendran en la trama
+longitudGrupo: Es la sumatoria de todos los tamanios de los campos que componen la lista  
+*/
+CREATE FUNCTION FormatDataWithGroup(IN cadena CHARACTER, IN longitudFija INT, IN longitudGrupo INT) RETURNS CHARACTER
+BEGIN
+	SET cadena = TRIM(TRAILING FROM cadena);
+	
+	DECLARE int_length_orig INTEGER LENGTH(cadena);
+	
+	IF LENGTH(cadena) < longitudFija THEN
+		SET cadena = FormatAlignCadena(cadena, longitudFija, '0', 'IZQ');
+	END IF;
+	
+	DECLARE int_mod INTEGER;
+
+	SET int_mod = MOD((int_length_orig - longitudFija),longitudGrupo);
+	IF (int_mod > 0) THEN
+		DECLARE int_space INTEGER;
+		SET int_space = longitudGrupo - int_mod;
+		SET cadena = cadena || SPACE(int_space); 
+	END IF;
+	--SET cadena = get_Character_WithOut_NULL(cadena);
+	RETURN cadena;
+END;
+
+CREATE FUNCTION getMsgId() 
+	RETURNS CHARACTER
+BEGIN
+	RETURN LEFT(BrokerName || REPLICATE('0',12) ,12) || REPLACE(UUIDASCHAR,'-','0');
+END;
+
+
+CREATE FUNCTION getCurrentTimeStamp() 
+	RETURNS CHARACTER
+BEGIN
+
+	DECLARE chrCurrentTimeStamp CHARACTER;
+	
+	DECLARE tmFecha DATE CURRENT_DATE;	
+	DECLARE tmHora TIME CURRENT_GMTTIME;
+	DECLARE tmZona CHARACTER LOCAL_TIMEZONE;
+	DECLARE intZona INTEGER;
+	DECLARE chrSigno CHARACTER;
+	
+	SET tmZona = SUBSTRING(tmZona AFTER 'INTERVAL ');
+	SET tmZona = SUBSTRING(tmZona BEFORE ' MINUTE'); 
+	
+	SET tmZona = SUBSTRING(tmZona FROM 2 FOR LENGTH(tmZona)-2); 
+	SET intZona = CAST(tmZona AS INTEGER);
+	
+	IF(intZona < 0) THEN
+		SET chrSigno = '-'; 
+	ELSE
+		SET chrSigno = '+';
+	END IF;
+	
+	DECLARE chrFecha CHARACTER;
+	DECLARE chrHora CHARACTER;
+	SET chrFecha 	= CAST(tmFecha AS CHARACTER FORMAT 'yyyy-MM-dd') ;
+	SET chrHora 	= CAST(tmHora AS CHARACTER FORMAT 'HH:mm:ss.SSSSSS') ;
+
+	DECLARE intHorZone INTEGER;
+	DECLARE intMinZone INTEGER;
+	DECLARE chrHorZone CHARACTER;
+	DECLARE chrMinZone CHARACTER;
+	
+	IF(intZona < 0) THEN
+		SET intZona = -1 * intZona;
+	END IF; 
+	
+	SET intHorZone = intZona/60;
+	SET intMinZone = MOD(intZona,60);
+	
+	SET chrHorZone = FormatAlignCadena(CAST(intHorZone AS CHARACTER),2,'0','DER');
+	SET chrMinZone = FormatAlignCadena(CAST(intMinZone AS CHARACTER),2,'0','DER');
+	
+	SET chrCurrentTimeStamp 	= chrFecha || 'T' || chrHora || chrSigno || chrHorZone || ':' || chrMinZone;
+	
+	RETURN chrCurrentTimeStamp;
+END;
+
+/*Funcion para el enmascaramiento del PAN para los casos PCI – OUT */
+
+CREATE FUNCTION toMask(IN cardIdType CHARACTER, IN pan CHARACTER, IN interfaceHost CHARACTER)RETURNS CHARACTER
+BEGIN
+	
+    	IF cardIdType <> '0' OR COALESCE(cardIdType,'')='' THEN
+     		IF TRIM(pan)<>'' THEN
+		         IF STARTSWITH(pan, '4') OR STARTSWITH(pan, '5') THEN
+		            -- Example: 421355******4795
+		            SET pan = SUBSTRING(pan FROM 1 FOR 6) || '******' || SUBSTRING(pan FROM 13 FOR 4);
+
+		         ELSE
+		
+		            IF STARTSWITH(pan, '3') THEN
+		                  -- Example: 377753*****3380
+		                  SET pan = SUBSTRING(pan FROM 1 FOR 6) || '*****' || SUBSTRING(pan FROM 12 FOR 4);
+		            ELSE
+                  
+                 		 THROW USER EXCEPTION MESSAGE 36 VALUES(interfaceHost  || ' TARJETA NO ES VISA, AMEX NI MC');
+                 		
+	            END IF;
+	            
+	         END IF;
+	      END IF;
+		END IF;	
+      RETURN pan;
+END;
+
+
+CREATE FUNCTION getEquivalenceValue(IN equivalenceNameTag CHARACTER,
+									IN originalValue CHARACTER,
+									IN refEnv REFERENCE)
+									RETURNS CHARACTER
+BEGIN
+		
+	DECLARE operation CHARACTER refEnv.Operation;
+	DECLARE concatFieldName CHARACTER equivalenceNameTag || '_' || COALESCE(originalValue,'');
+	DECLARE refEquivalences REFERENCE TO refEnv.EquivalenciaCampos.{operation};
+	
+    RETURN COALESCE(refEquivalences.{concatFieldName});
+    
+END;
+
+CREATE FUNCTION validatePCICases(IN card CHARACTER, IN cardType CHARACTER)
+RETURNS BOOLEAN
+BEGIN
+	DECLARE flag BOOLEAN FALSE;
+	
+	IF cardType <> '0' THEN
+		SET flag = TRUE; 
+	ELSEIF CONTAINS(card, '*') THEN
+		SET flag = TRUE; 
+	ELSEIF cardType = '0' THEN
+		SET flag = FALSE; 
+	END IF;
+	
+	RETURN flag;	
+END;
+
+
+CREATE FUNCTION cleanAndFill4Zero(IN chrCodRes CHARACTER)
+RETURNS CHARACTER
+BEGIN
+	
+	SET chrCodRes = TRIM(chrCodRes);
+	SET chrCodRes = RIGHT('0000' || chrCodRes,4);
+	
+	RETURN chrCodRes;	
+END;		
+

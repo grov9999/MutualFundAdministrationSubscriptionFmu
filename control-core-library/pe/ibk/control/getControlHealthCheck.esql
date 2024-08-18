@@ -1,0 +1,20 @@
+BROKER SCHEMA pe.ibk.control
+
+
+CREATE COMPUTE MODULE getControlHealthCheck
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		
+		SET Environment.Operation = InputLocalEnvironment.REST.Input.Operation;
+		
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'JSON' NAME 'JSON';
+        
+		CREATE FIELD OutputRoot.JSON.Data;
+        DECLARE OutMsg REFERENCE TO OutputRoot.JSON.Data;
+		
+		CREATE FIELD OutMsg.status IDENTITY (JSON.Object)status;
+		SET OutMsg.status = 'UP';
+		
+		RETURN TRUE;
+	END;
+END MODULE;

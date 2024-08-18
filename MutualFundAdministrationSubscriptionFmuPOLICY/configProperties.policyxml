@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<policies>
+  <policy policyType="UserDefined" policyName="configProperties" policyTemplate="UserDefined">
+    <postDepositExecute>{&quot;Parametros&quot;: {&quot;NOMBRE&quot;: &quot;MutualFundAdministrationSubscriptionFmuREST&quot;, &quot;COMAREALEN&quot;: 352, &quot;EQUIVRES&quot;: &quot;N&quot;, &quot;VERSION&quot;: &quot;v1&quot;, &quot;AUDITA&quot;: &quot;S&quot;, &quot;NOMPROGRAM&quot;: &quot;CDIO024&quot;, &quot;BSEOJIN&quot;: &quot;S&quot;, &quot;PROTOCOLO&quot;: &quot;CICS&quot;, &quot;NRORETRY&quot;: 0, &quot;RETRY&quot;: &quot;N&quot;, &quot;TIMEOUT&quot;: 10}, &quot;CICSTRAN&quot;: &quot;PGT6&quot;}</postDepositExecute>
+  </policy>
+</policies>

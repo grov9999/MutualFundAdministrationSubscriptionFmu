@@ -1,0 +1,573 @@
+{
+  "paths" : {
+    "/health" : {
+      "get" : {
+        "operationId" : "getHealth",
+        "responses" : {
+          "200" : {
+            "description" : "The operation was successful.",
+            "schema" : {
+              "$ref" : "#/definitions/HealthResponse"
+            }
+          }
+        },
+        "produces" : [ "application/json" ],
+        "description" : "Retrieve health"
+      }
+    },
+    "/deposit/execute" : {
+      "post" : {
+        "operationId" : "postDepositExecute",
+        "responses" : {
+          "200" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              },
+              "srvResponseCode" : {
+                "description" : "CÃ³digo de respuesta del proveedor.",
+                "type" : "string"
+              },
+              "srvResponseMessage" : {
+                "description" : "CÃ³digo de respuesta del proveedor.",
+                "type" : "string"
+              }
+            },
+            "schema" : {
+              "$ref" : "#/definitions/TramaRs_postDepositExecute"
+            }
+          },
+          "209" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              },
+              "srvResponseCode" : {
+                "description" : "CÃ³digo de respuesta del proveedor.",
+                "type" : "string"
+              },
+              "srvResponseMessage" : {
+                "description" : "CÃ³digo de respuesta del proveedor.",
+                "type" : "string"
+              }
+            }
+          },
+          "210" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              }
+            }
+          },
+          "404" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              }
+            }
+          },
+          "500" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              }
+            }
+          },
+          "503" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              }
+            }
+          },
+          "504" : {
+            "description" : "The operation was successful.",
+            "headers" : {
+              "busResponseCode" : {
+                "description" : "Codigo de respuesta tecnica.",
+                "type" : "integer",
+                "format" : "int32"
+              },
+              "busResponseMessage" : {
+                "description" : "Detalle de respuesta tecnica.",
+                "type" : "string"
+              },
+              "X-Global-Transaction-ID" : {
+                "description" : "Identificador de mensaje interno, generado por la transacciÃ³n.",
+                "type" : "string"
+              },
+              "messageId" : {
+                "description" : "Identificador de mensaje enviado por el cliente.",
+                "type" : "string"
+              },
+              "timestamp" : {
+                "description" : "Fecha en la que se finaliza la transacciÃ³n.",
+                "type" : "string"
+              }
+            }
+          }
+        },
+        "produces" : [ "application/json" ],
+        "description" : "Permite la suscripción (Abono de dinero) de fondos mutuos.",
+        "parameters" : [ {
+          "name" : "ReqBody",
+          "in" : "body",
+          "description" : "Body Request",
+          "required" : true,
+          "schema" : {
+            "$ref" : "#/definitions/TramaRq_postDepositExecute"
+          }
+        }, {
+          "name" : "serviceId",
+          "in" : "header",
+          "description" : "Identificador del servicio invocado",
+          "type" : "string"
+        }, {
+          "name" : "consumerId",
+          "in" : "header",
+          "description" : "Valor que identifica la aplicaciÃ³n cliente que estÃ¡ invocando el servicio",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "moduloId",
+          "in" : "header",
+          "description" : "Identificador del mÃ³dulo de la aplicaciÃ³n consumidora",
+          "type" : "string"
+        }, {
+          "name" : "channelId",
+          "in" : "header",
+          "description" : "CÃ³digo del canal desde donde se originÃ³ la transacciÃ³n",
+          "type" : "string"
+        }, {
+          "name" : "messageId",
+          "in" : "header",
+          "description" : "Identificador Ãºnico de la transacciÃ³n del canal desde donde se invoca el servicio.",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "timeStamp",
+          "in" : "header",
+          "description" : "fecha en la se origina la transacciÃ³n en el consumidor con formato",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "countryCode",
+          "in" : "header",
+          "description" : "CÃ³digo del paÃ­s donde se originÃ³ la transacciÃ³n",
+          "type" : "string"
+        }, {
+          "name" : "groupMember",
+          "in" : "header",
+          "description" : "Identificador de miembro del grupo",
+          "type" : "string"
+        }, {
+          "name" : "referenceNumber",
+          "in" : "header",
+          "description" : "NÃºmero de referencia de la transacciÃ³n",
+          "type" : "string"
+        }, {
+          "name" : "cardIdType",
+          "in" : "header",
+          "description" : "tipo de llave para identificar el PAN (aplica para operaciones PCI)",
+          "type" : "number"
+        }, {
+          "name" : "netId",
+          "in" : "header",
+          "description" : "Identificador de la red a la que pertenece el usuario",
+          "type" : "string"
+        }, {
+          "name" : "userId",
+          "in" : "header",
+          "description" : "Identificador del usuario que realizÃ³ la transacciÃ³n",
+          "type" : "string"
+        }, {
+          "name" : "supervisorId",
+          "in" : "header",
+          "description" : "Identificador del usuario supervisor que autoriza la transacciÃ³n",
+          "type" : "string"
+        }, {
+          "name" : "deviceId",
+          "in" : "header",
+          "description" : "Identificador del dispositivo de donde se realizÃ³ la transacciÃ³n. Ejemplo: Para ventanilla la IP de la OC, para ATM el cÃ³digo del cajero, etc.",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "serverId",
+          "in" : "query",
+          "description" : "IP o Hostname del servidor de donde se realizÃ³ la transacciÃ³n.",
+          "type" : "string"
+        }, {
+          "name" : "branchId",
+          "in" : "query",
+          "description" : "CÃ³digo de la sucursal donde se realizÃ³ la transacciÃ³n.",
+          "type" : "string"
+        }, {
+          "name" : "traceId",
+          "in" : "header",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "parentId",
+          "in" : "header",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "ipOrigen",
+          "in" : "header",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "funcionalidadId",
+          "in" : "header",
+          "type" : "string",
+          "required" : true
+        }, {
+          "name" : "x-global-transaction-id",
+          "in" : "query",
+          "description" : "Identificador de la transacciÃ³n desde API Connect",
+          "type" : "boolean"
+        } ]
+      }
+    }
+  },
+  "info" : {
+    "title" : "MutualFundAdministrationSubscriptionFmuREST",
+    "version" : "v1"
+  },
+  "swagger" : "2.0",
+  "basePath" : "/mutual-fund-administration-subscription/v1",
+  "definitions" : {
+    "TramaRq_postDepositExecute" : {
+      "type" : "object",
+      "properties" : {
+        "uniqueCode" : {
+          "type" : "string"
+        },
+        "contractNumberMutualFund" : {
+          "type" : "string"
+        },
+        "investmentFundType" : {
+          "type" : "string"
+        },
+        "vendorCode" : {
+          "type" : "string"
+        },
+        "ITFFlag" : {
+          "type" : "string"
+        },
+        "bseInformation" : {
+          "type" : "object",
+          "properties" : {
+            "documentTypeId" : {
+              "type" : "string"
+            },
+            "documentNumber" : {
+              "type" : "string"
+            },
+            "transactionCurrencyCode" : {
+              "type" : "string"
+            },
+            "transactionAmount" : {
+              "type" : "string"
+            },
+            "purchaseExchangeRate" : {
+              "type" : "string"
+            },
+            "saleExchangeRate" : {
+              "type" : "string"
+            },
+            "paymentMethods" : {
+              "type" : "array",
+              "items" : {
+                "properties" : {
+                  "paymentMethod" : {
+                    "type" : "object",
+                    "properties" : {
+                      "paymentMethodCode" : {
+                        "type" : "string"
+                      },
+                      "operationType" : {
+                        "type" : "string"
+                      },
+                      "currencyCode" : {
+                        "type" : "string"
+                      },
+                      "amount" : {
+                        "type" : "string"
+                      },
+                      "equivalentCurrencyCode" : {
+                        "type" : "string"
+                      },
+                      "arbitrationChange" : {
+                        "type" : "string"
+                      },
+                      "tradingRateFlag" : {
+                        "type" : "string"
+                      },
+                      "taxFlag" : {
+                        "type" : "string"
+                      },
+                      "chargeCard" : {
+                        "type" : "string"
+                      },
+                      "customerAccount" : {
+                        "type" : "object",
+                        "properties" : {
+                          "electronNumber" : {
+                            "type" : "string"
+                          },
+                          "retentionType" : {
+                            "type" : "string"
+                          },
+                          "dynamicComment" : {
+                            "type" : "string"
+                          },
+                          "controlAccountCode" : {
+                            "type" : "object",
+                            "properties" : {
+                              "bankCode" : {
+                                "type" : "string"
+                              },
+                              "currencyCode" : {
+                                "type" : "string"
+                              },
+                              "productCode" : {
+                                "type" : "string"
+                              }
+                            }
+                          },
+                          "controlAccountNumber" : {
+                            "type" : "object",
+                            "properties" : {
+                              "branchCode" : {
+                                "type" : "string"
+                              },
+                              "account" : {
+                                "type" : "string"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "accountingAccount" : {
+                        "type" : "object",
+                        "properties" : {
+                          "branchSenderCode" : {
+                            "type" : "string"
+                          },
+                          "branchReceiverCode" : {
+                            "type" : "string"
+                          },
+                          "accountingAccountNumber" : {
+                            "type" : "string"
+                          },
+                          "noteNumber" : {
+                            "type" : "string"
+                          },
+                          "taxFlagITF" : {
+                            "type" : "string"
+                          }
+                        }
+                      },
+                      "creditCardInfo" : {
+                        "type" : "object",
+                        "properties" : {
+                          "creditCardNumber" : {
+                            "type" : "string"
+                          },
+                          "cardHolderFlag" : {
+                            "type" : "string"
+                          },
+                          "dynamicGloss" : {
+                            "type" : "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "TramaRs_postDepositExecute" : {
+      "type" : "object",
+      "properties" : {
+        "operationNumber" : {
+          "type" : "string"
+        },
+        "operationDate" : {
+          "type" : "string"
+        },
+        "requestNumber" : {
+          "type" : "string"
+        },
+        "signCommission" : {
+          "type" : "string"
+        },
+        "commision" : {
+          "type" : "string"
+        },
+        "signCommissionIGV" : {
+          "type" : "string"
+        },
+        "commisionIGV" : {
+          "type" : "string"
+        },
+        "account" : {
+          "type" : "string"
+        },
+        "placeNumber" : {
+          "type" : "string"
+        },
+        "description" : {
+          "type" : "string"
+        },
+        "description1" : {
+          "type" : "string"
+        },
+        "description2" : {
+          "type" : "string"
+        },
+        "administrativeTaxCommission" : {
+          "type" : "string"
+        },
+        "rescueTaxCommission" : {
+          "type" : "string"
+        },
+        "productDescription" : {
+          "type" : "string"
+        },
+        "documentDescription" : {
+          "type" : "string"
+        }
+      }
+    },
+    "HealthResponse" : {
+      "type" : "object",
+      "properties" : {
+        "status" : {
+          "type" : "string",
+          "example" : "UP"
+        }
+      },
+      "required" : [ "status" ]
+    }
+  }
+}

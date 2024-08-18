@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:ComIbmTrace.msgnode="ComIbmTrace.msgnode" xmlns:ace_bus_api_postDepositExecute_postDepositExecuteCICS.subflow="ace/bus/api/postDepositExecute/postDepositExecuteCICS.subflow" xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:eflow="http://www.ibm.com/wbi/2005/eflow" xmlns:pe_ibk_control_getControlInitial.subflow="pe/ibk/control/getControlInitial.subflow" xmlns:utility="http://www.ibm.com/wbi/2005/eflow_utility" nsURI="postDepositExecute.subflow" nsPrefix="postDepositExecute.subflow">
+  <eClassifiers xmi:type="eflow:FCMComposite" name="FCMComposite_1" nodeLayoutStyle="SQUARE">
+    <eSuperTypes href="http://www.ibm.com/wbi/2005/eflow#//FCMBlock"/>
+    <translation xmi:type="utility:TranslatableString" key="postDepositExecute" bundleName="postDepositExecute" pluginId="MutualFundAdministrationSubscriptionFmuREST"/>
+    <colorGraphic16 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/MutualFundAdministrationSubscriptionFmuREST/icons/full/obj16/postDepositExecute.gif"/>
+    <colorGraphic32 xmi:type="utility:GIFFileGraphic" resourceName="platform:/plugin/MutualFundAdministrationSubscriptionFmuREST/icons/full/obj30/postDepositExecute.gif"/>   
+    <composition>
+      <nodes xmi:type="eflow:FCMSource" xmi:id="Input1" location="93,132">
+        <translation xmi:type="utility:TranslatableString" key="Input1" bundleName="postDepositExecute" pluginId="MutualFundAdministrationSubscriptionFmuREST"/>
+      </nodes>
+      <nodes xmi:type="eflow:FCMSink" xmi:id="Output1" location="813,133">
+        <translation xmi:type="utility:TranslatableString" key="Output1" bundleName="postDepositExecute" pluginId="MutualFundAdministrationSubscriptionFmuREST"/>
+      </nodes>
+      <nodes xmi:type="ComIbmTrace.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_1" location="685,133" destination="localError" pattern="[[${CURRENT_TIMESTAMP}] - [MsgID: ${Environment.HeadersIn.Messageid}] - [ChannelID: ${Environment.HeadersIn.Channelid}] - [${Environment.Operation}] - [postDepositExecute] - [Debug3]&#xD;&#xA;[Root: ${Root}]&#xD;&#xA;[Environment :${Environment}]]">
+        <translation xmi:type="utility:ConstantString" string="TDebug_3"/>
+      </nodes>
+      <nodes xmi:type="ComIbmTrace.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_2" location="399,132" destination="localError" pattern="[[${CURRENT_TIMESTAMP}] - [MsgID: ${Environment.HeadersIn.Messageid}] - [ChannelID: ${Environment.HeadersIn.Channelid}] - [${Environment.Operation}] - [postDepositExecute] - [Debug2]&#xD;&#xA;[Root: ${Root}]&#xD;&#xA;[Environment :${Environment}]]&#xD;&#xA;[LocalEnvironment: ${LocalEnvironment}]">
+        <translation xmi:type="utility:ConstantString" string="TDebug_2"/>
+      </nodes>
+      <nodes xmi:type="pe_ibk_control_getControlInitial.subflow:FCMComposite_1" xmi:id="FCMComposite_1_4" location="268,132" RedactPolicyName="{MutualFundAdministrationSubscriptionFmuPOLICY}:configAudit" RedactPolicyProperty="postDepositExecute" ConfigPolicyName="{MutualFundAdministrationSubscriptionFmuPOLICY}:configProperties" ConfigPolicyProperty="postDepositExecute">
+        <translation xmi:type="utility:ConstantString" string="getControlInitial"/>
+      </nodes>
+      <nodes xmi:type="ComIbmTrace.msgnode:FCMComposite_1" xmi:id="FCMComposite_1_5" location="188,132" destination="localError" pattern="[[${CURRENT_TIMESTAMP}] - [MsgID: ${Root.HTTPInputHeader.Messageid}] - [ChannelID: ${Root.HTTPInputHeader.Channelid}] - [${LocalEnvironment.REST.Input.Method}] - [postDepositExecute] - [Debug1]&#xD;&#xA;[Root: ${Root}]&#xD;&#xA;[LocalEnvironment :${LocalEnvironment}]">
+        <translation xmi:type="utility:ConstantString" string="TDebug_1"/>
+      </nodes>
+      <nodes xmi:type="ace_bus_api_postDepositExecute_postDepositExecuteCICS.subflow:FCMComposite_1" xmi:id="FCMComposite_1_6" location="511,132">
+        <translation xmi:type="utility:ConstantString" string="postDepositExecuteCICS"/> 
+      </nodes>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_1" targetNode="FCMComposite_1_4" sourceNode="FCMComposite_1_5" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_2" targetNode="FCMComposite_1_2" sourceNode="FCMComposite_1_4" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_3" targetNode="Output1" sourceNode="FCMComposite_1_1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_4" targetNode="FCMComposite_1_5" sourceNode="Input1" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.in"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_6" targetNode="FCMComposite_1_6" sourceNode="FCMComposite_1_2" sourceTerminalName="OutTerminal.out" targetTerminalName="InTerminal.Input"/>
+      <connections xmi:type="eflow:FCMConnection" xmi:id="FCMConnection_7" targetNode="FCMComposite_1_1" sourceNode="FCMComposite_1_6" sourceTerminalName="OutTerminal.Output" targetTerminalName="InTerminal.in"/>
+    </composition>
+    <propertyOrganizer/>
+    <stickyBoard/>
+  </eClassifiers>
+</ecore:EPackage>

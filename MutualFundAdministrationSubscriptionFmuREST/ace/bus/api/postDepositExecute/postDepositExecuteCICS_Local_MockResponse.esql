@@ -1,0 +1,41 @@
+BROKER SCHEMA ace.bus.api.postDepositExecute
+PATH pe.ibk.common, pe.ibk.common.audit;
+
+CREATE COMPUTE MODULE postDepositExecuteCICS_Local_MockResponse
+	CREATE FUNCTION Main() RETURNS BOOLEAN
+	BEGIN
+		DECLARE refParametersIn REFERENCE TO InputLocalEnvironment.REST.Input.Parameters;
+		DECLARE refInput REFERENCE TO InputRoot.DFDL;
+		DECLARE refEnv REFERENCE TO Environment;
+		DECLARE refEnvAudit REFERENCE TO refEnv.Audit;
+
+		DECLARE refMessageIn REFERENCE TO refInput.{C_NS}:MESSAGEHOST;
+
+		CREATE FIELD refMessageIn.BODY.BSEC710P_DATOS_OUTPUT;
+		DECLARE refDfdlBody REFERENCE TO refMessageIn.BODY.BSEC710P_DATOS_OUTPUT;
+		SET refDfdlBody.BSEC710P_NUSLC = '1';
+		SET refDfdlBody.BSEC710P_IMCOM_S = '2';
+		SET refDfdlBody.BSEC710P_IMCOM = '3';
+		SET refDfdlBody.BSEC710P_IMIGV_S = '4';
+		SET refDfdlBody.BSEC710P_IMIGV = '5';
+		SET refDfdlBody.BSEC710P_NUCTA = '6';
+		SET refDfdlBody.BSEC710P_NUPLZ = '7';
+		SET refDfdlBody.BSEC710P_DEMENRF = '8';
+		SET refDfdlBody.BSEC710P_DEMENRF1 = '9';
+		SET refDfdlBody.BSEC710P_DEMENRF2 = '10';
+		SET refDfdlBody.BSEC710P_IMCOMADM = '11';
+		SET refDfdlBody.BSEC710P_IMCOMRES = '12';
+		SET refDfdlBody.BSEC710P_DEPRD = '13';
+		SET refDfdlBody.BSEC710P_DEDOCIDE = '14';		
+
+
+		CREATE LASTCHILD OF OutputRoot DOMAIN 'BLOB';
+		CREATE FIELD OutputRoot.BLOB.BLOB;
+		CREATE FIELD OutputRoot.Properties.CodedCharSetId;
+		SET OutputRoot.Properties = InputRoot.Properties;
+		DECLARE tramaInput CHARACTER '';
+		SET tramaInput = CAST(ASBITSTREAM(refInput CCSID getCCSID_HOST() ENCODING getENCODING_HOST()) AS CHARACTER CCSID getCCSID_HOST() ENCODING getENCODING_HOST());
+		SET OutputRoot.BLOB.BLOB = CAST(tramaInput AS BLOB CCSID OutputRoot.Properties.CodedCharSetId);
+		RETURN TRUE;
+	END;
+END MODULE;

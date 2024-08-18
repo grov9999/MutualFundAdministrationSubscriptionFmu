@@ -1,0 +1,209 @@
+BROKER SCHEMA pe.ibk.common.audit
+PATH pe.ibk.common;
+
+/*
+Función que obtiene la información de monitoreo de los servicios backends
+*/
+CREATE FUNCTION getServiceNumber( IN refEnv REFERENCE ) RETURNS CHARACTER
+BEGIN
+	
+	DECLARE operation REFERENCE TO refEnv.Operation;
+	DECLARE refParameters REFERENCE to refEnv.Parametros.{operation}.*[1];
+	DECLARE nroServicios INTEGER 0;
+
+	WHILE LASTMOVE( refParameters ) DO
+		IF CONTAINS( FIELDNAME( refParameters ), 'SERVICIO_') THEN
+			SET nroServicios = nroServicios + 1;
+		END IF;
+		MOVE refParameters NEXTSIBLING;
+	END WHILE;
+	
+	IF nroServicios = 0 THEN
+		SET nroServicios = 1;
+	END IF;
+	
+	RETURN CAST(nroServicios AS CHARACTER);
+
+END;
+
+/*
+Función que obtiene la información de monitoreo de los servicios backends
+*/
+CREATE FUNCTION getBackendMonitoring( IN refEnv REFERENCE ) RETURNS INTEGER
+BEGIN
+
+	DECLARE refEnvDataAudit REFERENCE TO refEnv.DataAudit;
+	DECLARE refMonitoring REFERENCE TO refEnvDataAudit.Monitoring.*[1];
+
+	DECLARE backendDuration INTEGER 0;
+	
+	WHILE LASTMOVE(refMonitoring) DO
+		IF CONTAINS( FIELDNAME( refMonitoring), 'Service') THEN
+			SET backendDuration = backendDuration + refMonitoring.Duration;
+		END IF;
+		MOVE refMonitoring NEXTSIBLING;
+	END WHILE;
+	
+	RETURN backendDuration;
+	
+END;
+
+/*
+ * Funciones que manejan la fecha y hora de la auditoria en BD
+*/
+CREATE FUNCTION getDateTimeAudit()
+RETURNS CHARACTER
+BEGIN
+	RETURN CAST(CURRENT_TIMESTAMP AS CHAR FORMAT 'yyyy-MM-dd HH:mm:ss.SSS');				
+END;
+
+
+
+/*
+ * Funcion que obtiene la duración de los servicios
+*/
+/*CREATE FUNCTION getBackendDuration( IN refEnv REFERENCE ) RETURNS INTEGER
+BEGIN
+	
+	DECLARE chrService CHARACTER;
+	DECLARE backendDuration INTEGER 0;
+	DECLARE refEnvDataAudit REFERENCE TO refEnv.DataAudit;
+	--DECLARE intServices INTEGER getAuditServices( refEnv );
+	
+	DECLARE I INTEGER 1;
+	WHILE I <= intServices DO
+		SET chrService = FormatAlignCadena(CAST( I AS CHARACTER),2,'0','DER');
+		SET backendDuration = backendDuration + refEnvDataAudit.Monitoring.{'Service' || chrService}.Duration;
+		SET I = I + 1;
+	END WHILE;
+	
+	RETURN backendDuration;
+END;
+*/
+/*
+ * Funcion que indica si el tipo de error es funcional o técnico
+*/
+CREATE FUNCTION getFunctionalError( IN refOut REFERENCE, IN replyStatusCode INTEGER ) RETURNS CHARACTER ---@CAMBIAR MÉTODO
+BEGIN
+	DECLARE errorType CHARACTER;
+	IF replyStatusCode IN ( 209 ) THEN
+		SET errorType = 'S';
+	ELSE
+		SET errorType = 'N';
+	END IF;
+			
+	RETURN errorType;
+END;
+
+/*
+ * Funcion que indica el mensaje de error
+*/
+CREATE FUNCTION getResponseDescription( IN refData REFERENCE ) RETURNS CHARACTER
+BEGIN
+	
+	DECLARE messageDescription CHARACTER;
+	DECLARE srvResponseMessage CHARACTER COALESCE(TRIM(refData.HTTPReplyHeader.srvResponseMessage),'');
+	DECLARE busResponseMessage CHARACTER COALESCE(TRIM(refData.HTTPReplyHeader.busResponseMessage),'');
+	
+	IF LENGTH(srvResponseMessage) = 0 THEN
+		SET messageDescription = busResponseMessage;
+	ELSE
+		SET messageDescription = COALESCE( busResponseMessage, srvResponseMessage);
+	END IF;
+		
+	RETURN messageDescription;
+END;
+
+CREATE FUNCTION getHTTPStatusMessage( IN replyStatusCode INTEGER ) RETURNS CHARACTER
+BEGIN
+	DECLARE httpStatusMessage CHARACTER;
+
+	CASE replyStatusCode
+		
+	WHEN 200 THEN
+		SET httpStatusMessage = 'OK';
+	WHEN 201 THEN
+		SET httpStatusMessage = 'Created';
+	WHEN 202 THEN
+		SET httpStatusMessage = 'Accepted';
+	WHEN 203 THEN
+		SET httpStatusMessage = 'Non-Authoritative Information';
+	WHEN 204 THEN
+		SET httpStatusMessage = 'No Content';
+	WHEN 205 THEN
+		SET httpStatusMessage = 'Reset Content';
+	WHEN 206 THEN
+		SET httpStatusMessage = 'Partial Content';
+	WHEN 209 THEN
+		SET httpStatusMessage = 'A functional error has occurred in the external service';
+	WHEN 300 THEN
+		SET httpStatusMessage = 'Multiple Choices';
+	WHEN 301 THEN
+		SET httpStatusMessage = 'Moved Permanently';
+	WHEN 302 THEN
+		SET httpStatusMessage = 'Found';
+	WHEN 303 THEN
+		SET httpStatusMessage = 'See Other';
+	WHEN 304 THEN
+		SET httpStatusMessage = 'Not Modified';
+	WHEN 306 THEN
+		SET httpStatusMessage = 'Switch Proxy';
+	WHEN 307 THEN
+		SET httpStatusMessage = 'Temporary Redirect';
+	WHEN 308 THEN
+		SET httpStatusMessage = 'Resume Incomplete';
+	WHEN 400 THEN
+		SET httpStatusMessage = 'Bad Request';
+	WHEN 401 THEN
+		SET httpStatusMessage = 'Unauthorized';
+	WHEN 402 THEN
+		SET httpStatusMessage = 'Payment Required';
+	WHEN 403 THEN
+		SET httpStatusMessage = 'Forbidden';
+	WHEN 404 THEN
+		SET httpStatusMessage = 'Not Found';
+	WHEN 405 THEN
+		SET httpStatusMessage = 'Method Not Allowed';
+	WHEN 406 THEN
+		SET httpStatusMessage = 'Not Acceptable';
+	WHEN 407 THEN
+		SET httpStatusMessage = 'Proxy Authentication Required';
+	WHEN 408 THEN
+		SET httpStatusMessage = 'Request Timeout';
+	WHEN 409 THEN
+		SET httpStatusMessage = 'Conflict';
+	WHEN 410 THEN
+		SET httpStatusMessage = 'Gone';
+	WHEN 411 THEN
+		SET httpStatusMessage = 'Length Required';
+	WHEN 412 THEN
+		SET httpStatusMessage = 'Precondition Failed';
+	WHEN 413 THEN
+		SET httpStatusMessage = 'Request Entity Too Large';
+	WHEN 414 THEN
+		SET httpStatusMessage = 'Request-URI Too Long';
+	WHEN 415 THEN
+		SET httpStatusMessage = 'Unsupported Media Type';
+	WHEN 416 THEN
+		SET httpStatusMessage = 'Requested Range Not Satisfiable';
+	WHEN 417 THEN
+		SET httpStatusMessage = 'Expectation Failed';
+	WHEN 500 THEN
+		SET httpStatusMessage = 'Internal Server Error';
+	WHEN 501 THEN
+		SET httpStatusMessage = 'Not Implemented';
+	WHEN 502 THEN
+		SET httpStatusMessage = 'Bad Gateway';
+	WHEN 503 THEN
+		SET httpStatusMessage = 'Service Unavailable';
+	WHEN 504 THEN
+		SET httpStatusMessage = 'Gateway Timeout';
+	WHEN 505 THEN
+		SET httpStatusMessage = 'HTTP Version Not Supported';
+	WHEN 511 THEN
+		SET httpStatusMessage = 'Network Authentication Required';
+	END CASE;
+	
+	RETURN httpStatusMessage;
+END;
+
